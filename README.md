@@ -69,7 +69,6 @@ Contains all the UI logic.
 
 ## Screenshots
 
-<p float="left">
 <img src="images/Frame%203.png" height="400"  alt="screenshot"/>
 <img src="images/Frame%206.png" height="400"  alt="screenshot"/>
 <img src="images/Frame%205.png" height="400"  alt="screenshot"/>
@@ -78,7 +77,15 @@ Contains all the UI logic.
 <img src="images/Frame%201.png" height="400"  alt="screenshot"/>
 <img src="images/Frame%208.png" height="400"  alt="screenshot"/>
 <img src="images/Frame%207.png" height="400"  alt="screenshot"/>
-</p>
+
+![Screenshot](images/Frame%203.png)
+![Screenshot](images/Frame%206.png)
+![Screenshot](images/Frame%205.png)
+![Screenshot](images/Frame%204.png)
+![Screenshot](images/Frame%202.png)
+![Screenshot](images/Frame%201.png)
+![Screenshot](images/Frame%208.png)
+![Screenshot](images/Frame%207.png)
 
 ## License
 
