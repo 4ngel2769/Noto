@@ -13,11 +13,13 @@ import androidx.core.os.bundleOf
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
+import com.noto.app.R
 import com.noto.app.databinding.NotePagerFragmentBinding
 import com.noto.app.util.*
 import kotlinx.coroutines.flow.combine
@@ -28,9 +30,13 @@ import org.koin.core.parameter.parametersOf
 
 class NotePagerFragment : Fragment() {
 
-    private val viewModel by viewModel<NotePagerViewModel> { parametersOf(args.folderId, args.noteId, args.selectedNoteIds) }
+    private val viewModel by viewModel<NotePagerViewModel> { parametersOf(args.folderId, args.noteId, args.selectedNoteIds, args.isArchive) }
 
     private val args by navArgs<NotePagerFragmentArgs>()
+
+    private val anchorViewId by lazy { R.id.bab }
+
+    private val folderColor by lazy { viewModel.folder.value.color }
 
     private val windowInsetsController by lazy {
         val window = activity?.window
@@ -60,17 +66,24 @@ class NotePagerFragment : Fragment() {
 
     private fun NotePagerFragmentBinding.setupState() {
         abl.bringToFront()
+        fab.isVisible = !args.isArchive
+        fabPrevious.isVisible = !args.isArchive
+        fabNext.isVisible = !args.isArchive
+        fabUnarchive.isVisible = args.isArchive
+        fabDelete.isVisible = args.isArchive
 
         viewModel.folder
             .onEach { folder ->
                 context?.let { context ->
                     val color = context.colorResource(folder.color.toResource())
-                    tb.title = folder.getTitle(context)
-                    tb.setTitleTextColor(color)
+                    tvFolderTitle.text = context.stringResource(R.string.folder_archive, folder.getTitle(context))
+                    tvFolderTitle.setTextColor(color)
                     tb.navigationIcon?.mutate()?.setTint(color)
                     fab.backgroundTintList = color.toColorStateList()
                     fabPrevious.rippleColor = color
                     fabNext.rippleColor = color
+                    indicator.trackColor = color.withDefaultAlpha()
+                    indicator.setIndicatorColor(color)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         listOf(fabPrevious, fabNext, fab).forEach {
                             it.outlineAmbientShadowColor = color
@@ -81,7 +94,8 @@ class NotePagerFragment : Fragment() {
             }
             .launchIn(lifecycleScope)
 
-        combine(viewModel.noteIds, viewModel.selectedId) { noteIds, selectedId ->
+        combine(viewModel.noteIds, viewModel.selectedNoteId) { noteIds, selectedId ->
+            if (selectedId == null) navController?.navigateUp()
             if (vp.adapter == null && noteIds.isNotEmpty()) {
                 adapter = object : FragmentStateAdapter(this@NotePagerFragment) {
                     override fun getItemCount(): Int = noteIds.count()
@@ -99,6 +113,19 @@ class NotePagerFragment : Fragment() {
             vp.currentItem = selectedIndex
             if (isPreviousEnabled) fabPrevious.enable() else fabPrevious.disable()
             if (isNextEnabled) fabNext.enable() else fabNext.disable()
+            val notesCount = noteIds.count()
+            val selectedNoteNumber = selectedIndex + 1
+            tvNotesCount.text = context?.quantityStringResource(R.plurals.reading_mode_notes_count, notesCount, selectedNoteNumber, notesCount)
+            tvNotesCountRtl.text = context?.quantityStringResource(R.plurals.reading_mode_notes_count, notesCount, selectedNoteNumber, notesCount)
+            indicator.isVisible = notesCount > 1
+            if (notesCount != 0) {
+                val progress = selectedNoteNumber.toDouble().div(notesCount).times(100).toInt()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    indicator.setProgress(progress, true)
+                } else {
+                    indicator.setProgressCompat(progress, true)
+                }
+            }
         }.launchIn(lifecycleScope)
 
         viewModel.isDoNotDisturb
@@ -144,6 +171,14 @@ class NotePagerFragment : Fragment() {
                 if (viewModel.lastScrollPosition.value > scrollPosition) bab.performShow(true) else bab.performHide(true)
                 viewModel.setLastScrollPosition(scrollPosition)
             }
+
+        if (isCurrentLocaleArabic()) {
+            tvNotesCount.isVisible = false
+            tvNotesCountRtl.isVisible = true
+        } else {
+            tvNotesCount.isVisible = true
+            tvNotesCountRtl.isVisible = false
+        }
     }
 
     private fun NotePagerFragmentBinding.setupListeners() {
@@ -162,7 +197,7 @@ class NotePagerFragment : Fragment() {
         vp.registerOnPageChangeCallback(
             object : ViewPager2.OnPageChangeCallback() {
                 override fun onPageSelected(position: Int) {
-                    viewModel.selectIdByIndex(position)
+                    viewModel.selectNoteIdByIndex(position)
                     bab.performShow(true)
                 }
             }
@@ -176,7 +211,7 @@ class NotePagerFragment : Fragment() {
             navController?.navigateSafely(
                 NotePagerFragmentDirections.actionNotePagerFragmentToNoteFragment(
                     folderId = args.folderId,
-                    noteId = viewModel.selectedId.value,
+                    noteId = viewModel.selectedNoteId.value ?: return@setOnClickListener,
                     scrollPosition = scrollPosition,
                     isTitleVisible = isTitleVisible,
                     isBodyVisible = isBodyVisible,
@@ -186,24 +221,66 @@ class NotePagerFragment : Fragment() {
         }
 
         fabPrevious.setOnClickListener {
-            viewModel.selectPreviousId()
+            viewModel.selectPreviousNoteId()
         }
 
         fabNext.setOnClickListener {
-            viewModel.selectNextId()
-
+            viewModel.selectNextNoteId()
         }
 
         fabPrevious.setOnLongClickListener {
             adapter?.createFragment(0)
-            viewModel.selectFirstId()
+            viewModel.selectFirstNoteId()
             true
         }
 
         fabNext.setOnLongClickListener {
             adapter?.createFragment(viewModel.noteIds.value.lastIndex)
-            viewModel.selectLastId()
+            viewModel.selectLastNoteId()
             true
+        }
+
+        fabUnarchive.setOnClickListener {
+            context?.let { context ->
+                viewModel.unarchiveSelectedArchivedNote().invokeOnCompletion {
+                    vp.adapter = null
+                    val text = context.quantityStringResource(R.plurals.note_is_unarchived, 1)
+                    val drawableId = R.drawable.ic_round_unarchive_24
+                    root.snackbar(text, drawableId, anchorViewId, folderColor)
+                    context.updateAllWidgetsData()
+                    context.updateNoteListWidgets()
+                }
+            }
+        }
+
+        fabDelete.setOnClickListener {
+            context?.let { context ->
+                val confirmationText = context.quantityStringResource(R.plurals.delete_note_confirmation, 1)
+                val descriptionText = context.quantityStringResource(R.plurals.delete_note_description, 1)
+                val btnText = context.quantityStringResource(R.plurals.delete_note, 1)
+                val liveData = navController?.currentBackStackEntry?.savedStateHandle?.getLiveData<Int>(Constants.ClickListener)
+                liveData?.observe(viewLifecycleOwner) {
+                    if (it != null) {
+                        liveData.value = null
+                        viewModel.deleteSelectedArchivedNote().invokeOnCompletion {
+                            vp.adapter = null
+                            val text = context.quantityStringResource(R.plurals.note_is_deleted, 1)
+                            val drawableId = R.drawable.ic_round_delete_24
+                            root.snackbar(text, drawableId, anchorViewId, folderColor)
+                            context.updateAllWidgetsData()
+                            context.updateNoteListWidgets()
+                        }
+                    }
+                }
+
+                navController?.navigateSafely(
+                    NotePagerFragmentDirections.actionNotePagerFragmentToConfirmationDialogFragment(
+                        confirmationText,
+                        descriptionText,
+                        btnText,
+                    )
+                )
+            }
         }
     }
 

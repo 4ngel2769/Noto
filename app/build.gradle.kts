@@ -1,16 +1,17 @@
-import java.util.*
+import java.util.Properties
 
 plugins {
     id(Plugins.AndroidApplication)
     kotlin(Plugins.KotlinAndroid)
     id(Plugins.NavigationSafeArgs)
-    kotlin("plugin.serialization") version "1.8.10"
-    id("com.google.devtools.ksp") version "1.8.10-1.0.9"
+    kotlin("plugin.serialization") version "1.8.22"
+    id("com.google.devtools.ksp") version "1.8.22-1.0.11"
 }
 
 android {
     compileSdk = App.CompileSDK
     buildToolsVersion = App.BuildTools
+    namespace = App.Namespace
     signingConfigs {
         create("release") {
             val properties = Properties().apply {
@@ -51,10 +52,11 @@ android {
                 "in",
                 "it",
                 "lt",
-//                "ru",
+                "ru",
 //                "ta",
                 "tr",
                 "zh",
+                "pt",
             )
         )
     }
@@ -103,7 +105,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.4.3"
+        kotlinCompilerExtensionVersion = Versions.Compose
     }
 
     testOptions {

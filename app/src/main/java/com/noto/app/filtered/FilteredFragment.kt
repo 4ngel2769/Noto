@@ -1,16 +1,17 @@
 package com.noto.app.filtered
 
 import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.addCallback
-import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.MenuItemCompat
+import androidx.core.view.forEach
 import androidx.core.view.isVisible
-import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
@@ -23,13 +24,11 @@ import com.noto.app.domain.model.Folder
 import com.noto.app.domain.model.Font
 import com.noto.app.folder.NoteItemModel
 import com.noto.app.folder.noteItem
+import com.noto.app.getOrDefault
 import com.noto.app.util.*
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -40,6 +39,12 @@ class FilteredFragment : Fragment() {
     private val viewModel by viewModel<FilteredViewModel> { parametersOf(args.model) }
 
     private val args by navArgs<FilteredFragmentArgs>()
+
+    private val alarmManager by lazy { context?.getSystemService(Context.ALARM_SERVICE) as AlarmManager? }
+
+    private val anchorViewId by lazy { R.id.bab }
+
+    private val modelColor by lazy { args.model.color }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -52,12 +57,21 @@ class FilteredFragment : Fragment() {
     }
 
     private fun FilteredFragmentBinding.setupListeners() {
+        val savedStateHandle = navController?.currentBackStackEntry?.savedStateHandle
+
         tb.setOnClickListener {
             rv.smoothScrollToPosition(0)
         }
 
         fab.setOnClickListener {
-            navController?.navigateSafely(FilteredFragmentDirections.actionFilteredFragmentToSelectFolderDialogFragment(longArrayOf()))
+            context?.let { context ->
+                navController?.navigateSafely(
+                    FilteredFragmentDirections.actionFilteredFragmentToSelectFolderDialogFragment(
+                        filteredFolderIds = longArrayOf(),
+                        title = context.stringResource(R.string.select_folder)
+                    )
+                )
+            }
         }
 
         bab.setNavigationOnClickListener {
@@ -73,6 +87,7 @@ class FilteredFragment : Fragment() {
                         viewModel.enableSearch()
                     true
                 }
+
                 R.id.change_visibility -> {
                     if (viewModel.notesGroupedByFolderVisibility.value.any { it.value } || viewModel.notesGroupedByDateVisibility.value.any { it.value })
                         viewModel.collapseAll()
@@ -80,6 +95,48 @@ class FilteredFragment : Fragment() {
                         viewModel.expandAll()
                     true
                 }
+
+                R.id.unarchive -> {
+                    val selectedNotes = viewModel.selectedNotesGroupedByFolder
+                    context?.let { context ->
+                        viewModel.unarchiveSelectedNotes()
+                        val text = context.quantityStringResource(R.plurals.note_is_unarchived, selectedNotes.count(), selectedNotes.count())
+                        val drawableId = R.drawable.ic_round_unarchive_24
+                        root.snackbar(text, drawableId, anchorViewId, modelColor)
+                    }
+                    true
+                }
+
+                R.id.delete -> {
+                    val selectedNotes = viewModel.selectedNotesGroupedByFolder
+                    context?.let { context ->
+                        val confirmationText = context.quantityStringResource(R.plurals.delete_note_confirmation, selectedNotes.count())
+                        val descriptionText = context.quantityStringResource(R.plurals.delete_note_description, selectedNotes.count())
+                        val btnText = context.quantityStringResource(R.plurals.delete_note, selectedNotes.count())
+                        savedStateHandle?.getLiveData<Int>(Constants.ClickListener)
+                            ?.observe(viewLifecycleOwner) {
+                                viewModel.deleteSelectedNotes().invokeOnCompletion {
+                                    val text = context.quantityStringResource(R.plurals.note_is_deleted, selectedNotes.count(), selectedNotes.count())
+                                    val drawableId = R.drawable.ic_round_delete_24
+                                    root.snackbar(text, drawableId, anchorViewId, modelColor)
+                                    selectedNotes.filter { model -> model.note.reminderDate != null }
+                                        .forEach { model -> alarmManager?.cancelAlarm(context, model.note.id) }
+                                    context.updateAllWidgetsData()
+                                    context.updateNoteListWidgets()
+                                }
+                            }
+
+                        navController?.navigateSafely(
+                            FilteredFragmentDirections.actionFilteredFragmentToConfirmationDialogFragment(
+                                confirmationText,
+                                descriptionText,
+                                btnText,
+                            )
+                        )
+                    }
+                    true
+                }
+
                 else -> false
             }
         }
@@ -90,6 +147,13 @@ class FilteredFragment : Fragment() {
 
         activity?.onBackPressedDispatcher?.addCallback {
             when {
+                viewModel.isSelection.value -> if (viewModel.isSearchEnabled.value) {
+                    viewModel.disableSearch()
+                } else {
+                    viewModel.disableSelection()
+                    viewModel.deselectAllNotes()
+                }
+
                 viewModel.isSearchEnabled.value -> viewModel.disableSearch()
                 viewModel.quickExit.value -> activity?.finish()
                 else -> navController?.navigateSafely(FilteredFragmentDirections.actionFilteredFragmentToMainFragment(exit = true))
@@ -100,9 +164,23 @@ class FilteredFragment : Fragment() {
 
     @OptIn(FlowPreview::class)
     private fun FilteredFragmentBinding.setupState() {
+        if (args.model == FilteredItemModel.Archived) {
+            bab.menu?.findItem(R.id.unarchive)?.isVisible = true
+            bab.menu?.findItem(R.id.delete)?.isVisible = true
+            fab.hide()
+        } else {
+            bab.menu?.findItem(R.id.unarchive)?.isVisible = false
+            bab.menu?.findItem(R.id.delete)?.isVisible = false
+            fab.show()
+        }
+
         context?.let { context ->
-            tvTitle.setTextColor(context.colorResource(args.model.color.toResource()))
-            fab.backgroundTintList = context.colorResource(args.model.color.toResource()).toColorStateList()
+            val colorResource = context.colorResource(args.model.color.toResource())
+            tvTitle.setTextColor(colorResource)
+            fab.backgroundTintList = colorResource.toColorStateList()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                etSearch.textCursorDrawable?.mutate()?.setTint(colorResource)
+            }
             tvTitle.text = when (args.model) {
                 FilteredItemModel.All -> R.string.all
                 FilteredItemModel.Recent -> R.string.recent
@@ -110,7 +188,7 @@ class FilteredFragment : Fragment() {
                 FilteredItemModel.Archived -> R.string.archived
             }.let(context::stringResource)
         }
-        rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//        rv.edgeEffectFactory = BounceEdgeEffectFactory()
         rv.itemAnimator = VerticalListItemAnimator()
         tvNotesCount.animationInterpolator = DefaultInterpolator()
         tvNotesCount.typeface = context?.tryLoadingFontResource(R.font.nunito_semibold)
@@ -124,10 +202,22 @@ class FilteredFragment : Fragment() {
                     viewModel.notesGroupedByFolderVisibility,
                     viewModel.font,
                     viewModel.searchTerm,
-                ) { notes, notesVisibility, font, searchTerm ->
-                    setupNotesGroupedByFolder(notes, notesVisibility, font, searchTerm)
+                    viewModel.isSelection,
+                ) { notes, notesVisibility, font, searchTerm, isSelection ->
+                    val isEmpty = notes.getOrDefault(emptyMap()).isEmpty()
+                    val isEmptySelection = notes.getOrDefault(emptyMap()).flatMap { it.value }.none { it.isSelected }
+                    bab.menu?.forEach { menuItem ->
+                        menuItem.isEnabled = !isEmpty
+                        menuItem.icon?.alpha = if (isEmpty) DisabledAlpha else EnabledAlpha
+                        if (menuItem.itemId == R.id.unarchive || menuItem.itemId == R.id.delete) {
+                            menuItem.isEnabled = !isEmptySelection
+                            menuItem.icon?.alpha = if (isEmptySelection) DisabledAlpha else EnabledAlpha
+                        }
+                    }
+                    setupNotesGroupedByFolder(notes, notesVisibility, font, searchTerm, isSelection)
                 }.launchIn(lifecycleScope)
             }
+
             FilteredItemModel.Recent, FilteredItemModel.Scheduled -> {
                 combine(
                     viewModel.notesGroupedByDate,
@@ -135,6 +225,16 @@ class FilteredFragment : Fragment() {
                     viewModel.font,
                     viewModel.searchTerm,
                 ) { notes, notesVisibility, font, searchTerm ->
+                    val isEmpty = notes.getOrDefault(emptyMap()).isEmpty()
+                    val isEmptySelection = notes.getOrDefault(emptyMap()).flatMap { it.value }.none { it.second.isSelected }
+                    bab.menu?.forEach { menuItem ->
+                        menuItem.isEnabled = !isEmpty
+                        menuItem.icon?.alpha = if (isEmpty) DisabledAlpha else EnabledAlpha
+                        if (menuItem.itemId == R.id.unarchive || menuItem.itemId == R.id.delete) {
+                            menuItem.isEnabled = !isEmptySelection
+                            menuItem.icon?.alpha = if (isEmptySelection) DisabledAlpha else EnabledAlpha
+                        }
+                    }
                     setupNotesGroupedByDate(notes, notesVisibility, font, searchTerm)
                 }.launchIn(lifecycleScope)
             }
@@ -202,16 +302,14 @@ class FilteredFragment : Fragment() {
             }
             .launchIn(lifecycleScope)
 
-        root.keyboardVisibilityAsFlow()
-            .onEach { isVisible ->
-                fab.isVisible = !isVisible
-                bab.isVisible = !isVisible
-                tilSearch.updateLayoutParams<CoordinatorLayout.LayoutParams> {
-                    anchorId = if (isVisible) View.NO_ID else fab.id
-                    gravity = if (isVisible) Gravity.BOTTOM else Gravity.TOP
-                }
-            }
-            .launchIn(lifecycleScope)
+        combine(
+            root.keyboardVisibilityAsFlow(),
+            bab.isHiddenAsFlow()
+                .onStart { emit(false) },
+        ) { isKeyboardVisible, isBabHidden ->
+            if (args.model != FilteredItemModel.Archived) fab.isVisible = !isKeyboardVisible
+            bab.isVisible = !isKeyboardVisible
+        }.launchIn(lifecycleScope)
 
         savedStateHandle?.getLiveData<Long>(Constants.FolderId)
             ?.observe(viewLifecycleOwner) { folderId ->
@@ -257,9 +355,16 @@ class FilteredFragment : Fragment() {
 
                     context?.let { context ->
                         if (notes.values.all { it.isEmpty() }) {
+                            val placeholderId = when {
+                                searchTerm.isNotBlank() -> R.string.no_notes_found_search
+                                args.model == FilteredItemModel.Recent -> R.string.no_recent_notes_found
+                                args.model == FilteredItemModel.Scheduled -> R.string.no_scheduled_notes_found
+                                else -> R.string.no_notes_found
+                            }
+
                             placeholderItem {
                                 id("placeholder")
-                                placeholder(context.stringResource(R.string.no_notes_found))
+                                placeholder(context.stringResource(placeholderId))
                             }
                         } else {
                             notes.forEach { (date, notes) ->
@@ -292,6 +397,7 @@ class FilteredFragment : Fragment() {
                                                             pair.second.note.folderId,
                                                             noteId = pair.second.note.id,
                                                             selectedNoteIds = noteIds,
+                                                            searchTerm = searchTerm.ifBlank { null },
                                                         )
                                                     )
                                             }
@@ -307,7 +413,6 @@ class FilteredFragment : Fragment() {
                                                     )
                                                 true
                                             }
-                                            onDragHandleTouchListener { _, _ -> false }
                                         }
                                     }
                             }
@@ -324,7 +429,10 @@ class FilteredFragment : Fragment() {
         notesVisibility: Map<Folder, Boolean>,
         font: Font,
         searchTerm: String,
+        isSelection: Boolean,
     ) {
+        val isArchivedModel = args.model == FilteredItemModel.Archived
+
         when (state) {
             is UiState.Loading -> rv.setupProgressIndicator()
             is UiState.Success -> {
@@ -337,9 +445,16 @@ class FilteredFragment : Fragment() {
 
                     context?.let { context ->
                         if (notes.values.all { it.isEmpty() }) {
+                            val placeholderId = when {
+                                searchTerm.isNotBlank() -> R.string.no_notes_found_search
+                                args.model == FilteredItemModel.Archived -> R.string.no_archived_notes_found
+                                args.model == FilteredItemModel.All -> R.string.no_relevant_notes_found
+                                else -> R.string.no_notes_found
+                            }
+
                             placeholderItem {
                                 id("placeholder")
-                                placeholder(context.stringResource(R.string.no_notes_found))
+                                placeholder(context.stringResource(placeholderId))
                             }
                         } else {
                             notes.forEach { (folder, notes) ->
@@ -377,29 +492,50 @@ class FilteredFragment : Fragment() {
                                             previewSize(folder.notePreviewSize)
                                             isShowCreationDate(folder.isShowNoteCreationDate)
                                             isManualSorting(false)
+                                            isSelection(isArchivedModel && isSelection)
                                             onClickListener { _ ->
-                                                navController
-                                                    ?.navigateSafely(
-                                                        FilteredFragmentDirections.actionFilteredFragmentToNoteFragment(
-                                                            model.note.folderId,
-                                                            noteId = model.note.id,
-                                                            selectedNoteIds = noteIds,
+                                                if (isArchivedModel) {
+                                                    if (isSelection) {
+                                                        if (model.isSelected) viewModel.deselectNote(model.note.id) else viewModel.selectNote(model.note.id)
+                                                    } else {
+                                                        navController?.navigateSafely(
+                                                            FilteredFragmentDirections.actionFilteredFragmentToNotePagerFragment(
+                                                                model.note.folderId,
+                                                                model.note.id,
+                                                                notes.map { it.note.id }.toLongArray(),
+                                                                isArchive = true,
+                                                            )
                                                         )
-                                                    )
+                                                    }
+                                                } else {
+                                                    navController
+                                                        ?.navigateSafely(
+                                                            FilteredFragmentDirections.actionFilteredFragmentToNoteFragment(
+                                                                model.note.folderId,
+                                                                noteId = model.note.id,
+                                                                selectedNoteIds = noteIds,
+                                                                searchTerm = searchTerm.ifBlank { null },
+                                                            )
+                                                        )
+                                                }
                                             }
                                             onLongClickListener { _ ->
-                                                navController
-                                                    ?.navigateSafely(
-                                                        FilteredFragmentDirections.actionFilteredFragmentToNoteDialogFragment(
-                                                            model.note.folderId,
-                                                            model.note.id,
-                                                            R.id.folderFragment,
-                                                            selectedNoteIds = noteIds,
+                                                if (isArchivedModel) {
+                                                    viewModel.enableSelection()
+                                                    if (model.isSelected) viewModel.deselectNote(model.note.id) else viewModel.selectNote(model.note.id)
+                                                } else {
+                                                    navController
+                                                        ?.navigateSafely(
+                                                            FilteredFragmentDirections.actionFilteredFragmentToNoteDialogFragment(
+                                                                model.note.folderId,
+                                                                model.note.id,
+                                                                R.id.folderFragment,
+                                                                selectedNoteIds = noteIds,
+                                                            )
                                                         )
-                                                    )
+                                                }
                                                 true
                                             }
-                                            onDragHandleTouchListener { _, _ -> false }
                                         }
                                     }
                             }

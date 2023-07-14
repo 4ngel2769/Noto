@@ -15,7 +15,20 @@ import com.noto.app.domain.model.FilteringType
 import com.noto.app.domain.model.NotoColor
 import com.noto.app.label.labelItem
 import com.noto.app.main.SelectFolderDialogFragment
-import com.noto.app.util.*
+import com.noto.app.util.Constants
+import com.noto.app.util.colorResource
+import com.noto.app.util.dp
+import com.noto.app.util.drawableResource
+import com.noto.app.util.filterSelected
+import com.noto.app.util.filterByLabels
+import com.noto.app.util.getTitle
+import com.noto.app.util.setupColors
+import com.noto.app.util.stringResource
+import com.noto.app.util.toResource
+import com.noto.app.util.toWidgetHeaderShapeId
+import com.noto.app.util.toWidgetShapeId
+import com.noto.app.util.updateNoteWidget
+import com.noto.app.util.withBinding
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -58,7 +71,7 @@ class NoteListWidgetConfigActivity : BaseActivity() {
         widget.lv.dividerHeight = 16.dp
         widget.lv.setPaddingRelative(8.dp, 16.dp, 8.dp, 100.dp)
         widget.root.clipToOutline = true
-        rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//        rv.edgeEffectFactory = BounceEdgeEffectFactory()
         listOf(swWidgetHeader, swEditWidget, swAppIcon, swNewFolder)
             .onEach { it.setupColors() }
 
@@ -77,8 +90,12 @@ class NoteListWidgetConfigActivity : BaseActivity() {
             viewModel.labels,
             viewModel.widgetFilteringType,
         ) { folder, notes, labels, filteringType ->
-            val filteredNotes = notes.filterSelectedLabels(labels.filterSelected(), filteringType)
+            val filteredNotes = notes.filterByLabels(labels.filterSelected(), filteringType)
             val color = colorResource(folder.color.toResource())
+            val placeholderId = when {
+                notes.isEmpty() -> R.string.folder_is_empty
+                else -> R.string.no_notes_found_labels
+            }
             tb.setTitleTextColor(color)
             rv.isVisible = labels.isNotEmpty()
             llFiltering.isVisible = labels.isNotEmpty()
@@ -88,6 +105,8 @@ class NoteListWidgetConfigActivity : BaseActivity() {
             widget.tvFolderTitle.setTextColor(color)
             widget.fab.background?.setTint(color)
             widget.ivFab.setColorFilter(color)
+            widget.tvPlaceholder.text = stringResource(placeholderId)
+
             if (filteredNotes.isEmpty()) {
                 widget.lv.isVisible = false
                 widget.tvPlaceholder.isVisible = true
@@ -229,6 +248,7 @@ class NoteListWidgetConfigActivity : BaseActivity() {
             Constants.FilteredFolderIds to longArrayOf(),
             Constants.IsDismissible to isDismissible,
             Constants.SelectedFolderId to viewModel.folder.value.id,
+            Constants.Title to stringResource(R.string.select_folder),
         )
         selectFolderDialogFragment = SelectFolderDialogFragment { folderId, _ -> viewModel.getWidgetData(folderId) }
             .apply {

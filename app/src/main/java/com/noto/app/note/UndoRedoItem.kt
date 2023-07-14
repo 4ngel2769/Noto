@@ -20,11 +20,14 @@ private const val Delimiter = "..."
 private const val WhiteSpace = ' '
 
 @SuppressLint("NonConstantResourceId")
-@EpoxyModelClass(layout = R.layout.undo_redo_item)
+@EpoxyModelClass
 abstract class UndoRedoItem : EpoxyModelWithHolder<UndoRedoItem.Holder>() {
 
     @EpoxyAttribute
     lateinit var text: String
+
+    @EpoxyAttribute
+    var index: Int = 0
 
     @EpoxyAttribute
     var cursorStartPosition: Int = 0
@@ -52,6 +55,7 @@ abstract class UndoRedoItem : EpoxyModelWithHolder<UndoRedoItem.Holder>() {
             val colorPrimary = context.colorResource(color.toResource())
             val colorSecondary = context.colorAttributeResource(R.attr.notoSecondaryColor)
             ll.background?.mutate()?.setTint(if (isSelected) selectedColor else backgroundColor)
+            tvIndex.text = index.plus(1).toString()
             tvText.text = buildSpannedString {
                 if (text.isNotBlank()) {
                     val startIndex = 0
@@ -93,6 +97,8 @@ abstract class UndoRedoItem : EpoxyModelWithHolder<UndoRedoItem.Holder>() {
         ll.setOnClickListener(onClickListener)
         ibCopy.setOnClickListener(onCopyClickListener)
     }
+
+    override fun getDefaultLayout(): Int = R.layout.undo_redo_item
 
     class Holder : EpoxyHolder() {
         lateinit var binding: UndoRedoItemBinding

@@ -104,7 +104,7 @@ class SettingsRepositoryImpl(
 
     override val lastVersion: Flow<String> = storage.data
         .map { preferences -> preferences[SettingsKeys.LastVersion] }
-        .map { it ?: Release.Version.Last }
+        .map { it ?: Release.Version.Last.format() }
         .flowOn(dispatcher)
 
     override val sortingType: Flow<FolderListSortingType> = storage.data
@@ -149,6 +149,16 @@ class SettingsRepositoryImpl(
     override val quickExit: Flow<Boolean> = storage.data
         .map { preferences -> preferences[SettingsKeys.QuickExit] }
         .map { it ?: false }
+        .flowOn(dispatcher)
+
+    override val continuousSearch: Flow<Boolean> = storage.data
+        .map { preferences -> preferences[SettingsKeys.ContinuousSearch] }
+        .map { it ?: true }
+        .flowOn(dispatcher)
+
+    override val previewAutoScroll: Flow<Boolean> = storage.data
+        .map { preferences -> preferences[SettingsKeys.PreviewAutoScroll] }
+        .map { it ?: true }
         .flowOn(dispatcher)
 
     override fun getFilteredNotesScrollingPosition(model: FilteredItemModel): Flow<Int> = storage.data
@@ -453,6 +463,18 @@ class SettingsRepositoryImpl(
     override suspend fun updateQuickExit(enabled: Boolean) {
         withContext(dispatcher) {
             storage.edit { preferences -> preferences[SettingsKeys.QuickExit] = enabled }
+        }
+    }
+
+    override suspend fun updateContinuousSearch(isEnabled: Boolean) {
+        withContext(dispatcher) {
+            storage.edit { preferences -> preferences[SettingsKeys.ContinuousSearch] = isEnabled }
+        }
+    }
+
+    override suspend fun updatePreviewAutoScroll(isEnabled: Boolean) {
+        withContext(dispatcher) {
+            storage.edit { preferences -> preferences[SettingsKeys.PreviewAutoScroll] = isEnabled }
         }
     }
 

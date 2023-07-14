@@ -51,18 +51,7 @@ class NoteDialogFragment : BaseDialogFragment() {
     private val isParentEditor
         get() = navController?.previousBackStackEntry?.destination?.id == R.id.noteFragment
 
-    private val anchorViewId by lazy {
-        val folderArchiveFragmentEntry = try {
-            navController?.getBackStackEntry(R.id.folderArchiveFragment)
-        } catch (exception: Throwable) {
-            null
-        }
-
-        if (folderArchiveFragmentEntry?.destination?.id == null)
-            R.id.bab
-        else
-            null
-    }
+    private val anchorViewId by lazy { R.id.bab }
 
     private val parentView by lazy { parentFragment?.view }
 
@@ -86,9 +75,6 @@ class NoteDialogFragment : BaseDialogFragment() {
 
     private fun NoteDialogFragmentBinding.setupState() {
         tb.tvDialogTitle.text = context?.stringResource(R.string.note_options)
-        tvSelectNote.isVisible = args.isSelectionEnabled || args.isSelectAllEnabled
-        divider2.root.isVisible = args.isSelectionEnabled || args.isSelectAllEnabled
-        tvSelectNote.text = if (args.isSelectAllEnabled) context?.stringResource(R.string.select_all) else context?.stringResource(R.string.select)
 
         viewModel.folder
             .onEach { folder -> setupFolder(folder) }
@@ -107,9 +93,12 @@ class NoteDialogFragment : BaseDialogFragment() {
         val savedStateHandle = navController?.currentBackStackEntry?.savedStateHandle
 
         tvArchiveNote.setOnClickListener {
+            disableSelection()
             viewModel.toggleNoteIsArchived().invokeOnCompletion {
                 context?.let { context ->
-                    val isArchived = viewModel.note.value.isArchived
+                    val note = viewModel.note.value
+                    if (note.reminderDate != null) alarmManager?.cancelAlarm(context, note.id)
+                    val isArchived = note.isArchived
                     val text = if (isArchived)
                         context.stringResource(R.string.note_is_unarchived)
                     else
@@ -127,6 +116,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvRemindMe.setOnClickListener {
+            disableSelection()
             dismiss()
             navController?.navigateSafely(
                 NoteDialogFragmentDirections.actionNoteDialogFragmentToNoteReminderDialogFragment(
@@ -137,6 +127,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvOpenIn.setOnClickListener {
+            disableSelection()
             val openNotesIn = viewModel.folder.value.openNotesIn
             when {
                 openNotesIn == OpenNotesIn.Editor || isParentEditor -> {
@@ -148,6 +139,7 @@ class NoteDialogFragment : BaseDialogFragment() {
                         )
                     )
                 }
+
                 openNotesIn == OpenNotesIn.ReadingMode || isParentReadingMode -> navController?.navigateSafely(
                     NoteDialogFragmentDirections.actionNoteDialogFragmentToNoteFragment(
                         args.folderId,
@@ -160,6 +152,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvDuplicateNote.setOnClickListener {
+            disableSelection()
             viewModel.duplicateNote().invokeOnCompletion {
                 val stringId = R.plurals.note_is_duplicated
                 val drawableId = R.drawable.ic_round_control_point_duplicate_24
@@ -172,6 +165,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvPinNote.setOnClickListener {
+            disableSelection()
             viewModel.toggleNoteIsPinned().invokeOnCompletion {
                 val isPinned = viewModel.note.value.isPinned
                 context?.let { context ->
@@ -191,6 +185,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvCopyToClipboard.setOnClickListener {
+            disableSelection()
             context?.let { context ->
                 val clipData = ClipData.newPlainText(viewModel.folder.value.getTitle(context), viewModel.note.value.format())
                 clipboardManager?.setPrimaryClip(clipData)
@@ -204,6 +199,7 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
 
         tvCopyNote.setOnClickListener {
+            disableSelection()
             savedStateHandle?.getLiveData<Long>(Constants.FolderId)
                 ?.observe(viewLifecycleOwner) { folderId ->
                     viewModel.copyNote(folderId).invokeOnCompletion {
@@ -224,15 +220,18 @@ class NoteDialogFragment : BaseDialogFragment() {
                         dismiss()
                     }
                 }
-            navController?.navigateSafely(
-                NoteDialogFragmentDirections.actionNoteDialogFragmentToSelectFolderDialogFragment(
-                    longArrayOf(args.folderId),
-                    title = selectFolderTitle
+            context?.let { context ->
+                navController?.navigateSafely(
+                    NoteDialogFragmentDirections.actionNoteDialogFragmentToSelectFolderDialogFragment(
+                        filteredFolderIds = longArrayOf(args.folderId),
+                        title = context.stringResource(R.string.copy_to).removeSuffix("…")
+                    )
                 )
-            )
+            }
         }
 
         tvMoveNote.setOnClickListener {
+            disableSelection()
             savedStateHandle?.getLiveData<Long>(Constants.FolderId)
                 ?.observe(viewLifecycleOwner) { folderId ->
                     viewModel.moveNote(folderId).invokeOnCompletion {
@@ -253,20 +252,24 @@ class NoteDialogFragment : BaseDialogFragment() {
                         dismiss()
                     }
                 }
-            navController?.navigateSafely(
-                NoteDialogFragmentDirections.actionNoteDialogFragmentToSelectFolderDialogFragment(
-                    longArrayOf(args.folderId),
-                    title = selectFolderTitle,
+            context?.let { context ->
+                navController?.navigateSafely(
+                    NoteDialogFragmentDirections.actionNoteDialogFragmentToSelectFolderDialogFragment(
+                        filteredFolderIds = longArrayOf(args.folderId),
+                        title = context.stringResource(R.string.move_to).removeSuffix("…")
+                    )
                 )
-            )
+            }
         }
 
         tvShareNote.setOnClickListener {
+            disableSelection()
             dismiss()
             launchShareNotesIntent(listOf(viewModel.note.value))
         }
 
         tvDeleteNote.setOnClickListener {
+            disableSelection()
             context?.let { context ->
                 val confirmationText = context.quantityStringResource(R.plurals.delete_note_confirmation, DefaultQuantity)
                 val descriptionText = context.quantityStringResource(R.plurals.delete_note_description, DefaultQuantity)
@@ -294,22 +297,12 @@ class NoteDialogFragment : BaseDialogFragment() {
                 )
             }
         }
-
-        tvSelectNote.setOnClickListener {
-            if (args.isSelectAllEnabled) {
-                navController?.previousBackStackEntry?.savedStateHandle?.set(Constants.SelectAll, true)
-            } else {
-                navController?.previousBackStackEntry?.savedStateHandle?.set(Constants.IsSelection, args.noteId)
-            }
-            dismiss()
-        }
     }
 
     private fun NoteDialogFragmentBinding.setupNote(folder: Folder, note: Note, labels: List<Label>) {
         context?.let { context ->
             val colorResource = context.colorResource(folder.color.toResource())
             vNote.root.backgroundTintList = context.colorAttributeResource(R.attr.notoBackgroundColor).toColorStateList()
-            vNote.ibDrag.isVisible = false
             vNote.tvNoteTitle.text = note.title
             vNote.tvNoteTitle.maxLines = 3
             vNote.tvNoteTitle.isVisible = note.title.isNotBlank()
@@ -379,24 +372,29 @@ class NoteDialogFragment : BaseDialogFragment() {
         }
     }
 
+    private fun disableSelection() {
+        navController?.previousBackStackEntry?.savedStateHandle?.set(Constants.DisableSelection, true)
+    }
+
     private fun NoteDialogFragmentBinding.setupFolder(folder: Folder) {
         context?.let { context ->
             val color = context.colorResource(folder.color.toResource())
             val colorStateList = color.toColorStateList()
             tb.tvDialogTitle.setTextColor(color)
-            tb.vHead.backgroundTintList = colorStateList
+            tb.vHead.background?.mutate()?.setTint(color)
             when {
                 folder.openNotesIn == OpenNotesIn.Editor || isParentEditor -> {
                     tvOpenIn.text = context.stringResource(R.string.reading_mode)
                     tvOpenIn.setCompoundDrawablesRelativeWithIntrinsicBounds(0, R.drawable.ic_round_reading_mode_24, 0, 0)
                 }
+
                 folder.openNotesIn == OpenNotesIn.ReadingMode || isParentReadingMode -> {
                     tvOpenIn.text = context.stringResource(R.string.edit)
                     tvOpenIn.setCompoundDrawablesRelativeWithIntrinsicBounds(0, R.drawable.ic_round_edit_24, 0, 0)
                 }
             }
             listOf(
-                tvSelectNote, tvCopyToClipboard, tvCopyNote, tvOpenIn, tvShareNote, tvArchiveNote,
+                tvCopyToClipboard, tvCopyNote, tvOpenIn, tvShareNote, tvArchiveNote,
                 tvDuplicateNote, tvPinNote, tvRemindMe, tvDeleteNote, tvMoveNote,
             ).forEach { tv ->
                 tv.background.setRippleColor(colorStateList)

@@ -18,7 +18,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.Fragment
 import com.noto.app.R
-import com.noto.app.components.EmptyPainter
 import com.noto.app.components.Screen
 import com.noto.app.util.*
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -82,17 +81,17 @@ class ReadingModeSettingsFragment : Fragment() {
                         )
 
                         SettingsItem(
-                            title = stringResource(id = R.string.full_screen),
+                            title = stringResource(id = R.string.full_screen_mode),
                             type = SettingsItemType.Switch(isChecked = fullScreenEnabled),
                             onClick = { viewModel.toggleFullScreen() },
                             description = stringResource(id = R.string.full_screen_description),
-                            painter = EmptyPainter,
+                            painter = painterResource(id = R.drawable.ic_round_fullscreen_24),
                         )
 
                         SettingsItem(
                             title = stringResource(id = R.string.screen_brightness_level),
-                            type = SettingsItemType.Text(screenBrightnessLevel.asString()),
-                            onClick = { navController?.navigate(ReadingModeSettingsFragmentDirections.actionReadingModeSettingsFragmentToScreenBrightnessLevelDialogFragment()) },
+                            type = SettingsItemType.Text(stringResource(id = screenBrightnessLevel.toResource())),
+                            onClick = { navController?.navigateSafely(ReadingModeSettingsFragmentDirections.actionReadingModeSettingsFragmentToScreenBrightnessLevelDialogFragment()) },
                             description = stringResource(id = R.string.screen_brightness_level_description),
                             painter = painterResource(id = R.drawable.ic_round_brightness_24)
                         )

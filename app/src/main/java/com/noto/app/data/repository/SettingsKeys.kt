@@ -28,6 +28,8 @@ object SettingsKeys {
     val QuickNoteFolderId = longPreferencesKey("QuickNoteFolderId")
     val ScreenBrightnessLevel = floatPreferencesKey("ScreenBrightnessLevel")
     val QuickExit = booleanPreferencesKey("QuickExit")
+    val ContinuousSearch = booleanPreferencesKey("ContinuousSearch")
+    val PreviewAutoScroll = booleanPreferencesKey("PreviewAutoScroll")
     fun FilteredItemModel(model: FilteredItemModel) = intPreferencesKey("Filtered_Item_Model_${model.id}")
 
     @Suppress("FunctionName")

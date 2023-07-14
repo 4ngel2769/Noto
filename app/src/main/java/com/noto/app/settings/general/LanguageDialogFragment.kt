@@ -7,26 +7,27 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.noto.app.NotoTheme
 import com.noto.app.R
 import com.noto.app.components.BaseDialogFragment
 import com.noto.app.components.BottomSheetDialog
+import com.noto.app.components.MediumSubtitle
 import com.noto.app.components.SelectableDialogItem
 import com.noto.app.domain.model.Language
 import com.noto.app.settings.SettingsViewModel
-import com.noto.app.util.asString
-import com.noto.app.util.toLocalizedContext
+import com.noto.app.util.Comparator
+import com.noto.app.util.localize
+import com.noto.app.util.stringResource
+import com.noto.app.util.toResource
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
-class LanguageDialogFragment : BaseDialogFragment() {
+class LanguageDialogFragment : BaseDialogFragment(isCollapsable = true) {
 
     private val viewModel by viewModel<SettingsViewModel>()
 
@@ -39,8 +40,12 @@ class LanguageDialogFragment : BaseDialogFragment() {
             setContent {
                 BottomSheetDialog(title = stringResource(id = R.string.language)) {
                     val selectedLanguage by viewModel.language.collectAsState()
-                    val languages = remember { Language.values().sortedBy { it in Language.Deprecated } }
-                    languages.forEach { language ->
+                    val languages = remember(context) {
+                        Language.values()
+                            .sortedWith(Language.Comparator(context))
+                            .map { it to context.localize(it) }
+                    }
+                    languages.forEach { (language, localizedContext) ->
                         SelectableDialogItem(
                             selected = selectedLanguage == language,
                             onClick = {
@@ -55,15 +60,9 @@ class LanguageDialogFragment : BaseDialogFragment() {
                                 Arrangement.SpaceBetween
                             ) {
                                 Column(Modifier.weight(1F), verticalArrangement = Arrangement.spacedBy(NotoTheme.dimensions.extraSmall)) {
-                                    CompositionLocalProvider(LocalContext provides language.toLocalizedContext()) {
-                                        Text(text = language.asString())
-                                    }
+                                    Text(text = localizedContext.stringResource(language.toResource()))
                                     if (language != Language.System) {
-                                        Text(
-                                            text = language.asString(),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.secondary
-                                        )
+                                        MediumSubtitle(text = context.stringResource(language.toResource()))
                                     }
                                 }
                                 if (language in Language.Deprecated) {

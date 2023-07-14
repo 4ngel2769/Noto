@@ -55,21 +55,85 @@
                     tools:text="7 notes" />
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
+
+        <LinearLayout
+            android:id="@+id/ll_find_in_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="@dimen/spacing_small"
+            android:paddingBottom="@dimen/spacing_normal"
+            android:paddingHorizontal="@dimen/spacing_normal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/til_find_in_note"
+                style="@style/SearchTextInputLayout"
+                android:layout_marginStart="0dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
+                android:layout_marginEnd="@dimen/spacing_small"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:visibility="visible">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_find_in_note"
+                    style="@style/TextInputEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:hint="@string/find_in_note"
+                    android:inputType="text|textCapSentences|textAutoCorrect" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <ImageButton
+                android:id="@+id/ib_previous"
+                android:background="@drawable/generic_ripple_shape"
+                android:backgroundTint="?attr/notoSurfaceColor"
+                android:src="@drawable/ic_round_back_24"
+                android:padding="@dimen/spacing_normal"
+                android:layout_gravity="center"
+                android:rotation="90"
+                android:layout_marginStart="@dimen/spacing_small"
+                android:layout_marginEnd="@dimen/spacing_small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/previous" />
+
+            <ImageButton
+                android:id="@+id/ib_next"
+                android:background="@drawable/generic_ripple_shape"
+                android:backgroundTint="?attr/notoSurfaceColor"
+                android:src="@drawable/ic_round_back_24"
+                android:padding="@dimen/spacing_normal"
+                android:layout_gravity="center"
+                android:rotation="-90"
+                android:layout_marginStart="@dimen/spacing_small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/next" />
+        </LinearLayout>
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/nsv"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:animateLayoutChanges="true"
         android:overScrollMode="never"
-        app:layout_behavior="com.noto.app.util.BounceScrollingViewBehavior">
+        app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
+        <!--        app:layout_behavior="com.noto.app.util.BounceScrollingViewBehavior">-->
 
         <LinearLayout
             android:id="@+id/ll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:paddingBottom="@dimen/padding_bottom">
+            android:paddingBottom="@dimen/padding_bottom"
+            android:animateLayoutChanges="true">
 
             <com.airbnb.epoxy.EpoxyRecyclerView
                 android:id="@+id/rv"
@@ -79,6 +143,37 @@
                 android:layout_height="wrap_content"
                 tools:itemCount="1"
                 tools:listitem="@layout/label_item" />
+
+            <LinearLayout
+                android:id="@+id/ll_reminder"
+                android:orientation="horizontal"
+                android:background="@drawable/label_item_shape"
+                android:backgroundTint="@color/colorPrimary"
+                android:layout_marginHorizontal="@dimen/spacing_normal"
+                android:layout_marginVertical="@dimen/spacing_small"
+                android:padding="@dimen/spacing_small"
+                android:gravity="center"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <ImageView
+                    android:src="@drawable/ic_round_notifications_active_24"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@string/reminder"
+                    android:layout_marginEnd="@dimen/spacing_extra_small"
+                    app:tint="?attr/notoBackgroundColor" />
+
+                <TextView
+                    android:id="@+id/tv_reminder"
+                    android:layout_marginStart="@dimen/spacing_extra_small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="@dimen/size_extra_small"
+                    android:textColor="?attr/notoBackgroundColor"
+                    app:fontFamily="@font/nunito_medium"
+                    tools:text="Today, 7:30 PM" />
+            </LinearLayout>
 
             <com.noto.app.util.CustomEditText
                 android:id="@+id/et_note_title"
@@ -138,9 +233,9 @@
 
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bab"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
         app:addElevationShadow="true"
         app:backgroundTint="?attr/notoBackgroundColor"
         app:elevation="@dimen/elevation_large"
@@ -156,8 +251,8 @@
         android:layout_gravity="bottom"
         android:layout_height="wrap_content"
         android:layout_width="match_parent"
-        android:paddingStart="0dp"
         android:paddingEnd="0dp"
+        android:paddingStart="0dp"
         app:addElevationShadow="true"
         app:backgroundTint="?attr/notoBackgroundColor"
         app:contentInsetEnd="0dp"
@@ -171,43 +266,43 @@
         tools:visibility="gone">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:gravity="center"
             android:layout_height="80dp"
-            android:gravity="center">
+            android:layout_width="match_parent">
 
             <ImageButton
                 android:id="@+id/ib_undo_history"
                 style="@style/ClickableView"
-                android:layout_width="wrap_content"
+                android:contentDescription="@string/undo_history"
                 android:layout_height="match_parent"
-                android:src="@drawable/ic_round_undo_history_24"
-                android:contentDescription="@string/undo_history" />
+                android:layout_width="wrap_content"
+                android:src="@drawable/ic_round_undo_history_24" />
 
             <ImageButton
                 android:id="@+id/ib_undo"
                 style="@style/ClickableView"
-                android:layout_width="match_parent"
+                android:contentDescription="@string/undo"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:contentDescription="@string/undo"
+                android:layout_width="match_parent"
                 android:src="@drawable/ic_round_undo_24" />
 
             <ImageButton
                 android:id="@+id/ib_redo"
                 style="@style/ClickableView"
-                android:layout_width="match_parent"
+                android:contentDescription="@string/redo"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:contentDescription="@string/redo"
+                android:layout_width="match_parent"
                 android:src="@drawable/ic_round_redo_24" />
 
             <ImageButton
                 android:id="@+id/ib_redo_history"
                 style="@style/ClickableView"
-                android:layout_width="wrap_content"
+                android:contentDescription="@string/redo_history"
                 android:layout_height="match_parent"
-                android:src="@drawable/ic_round_redo_history_24"
-                android:contentDescription="@string/redo_history" />
+                android:layout_width="wrap_content"
+                android:src="@drawable/ic_round_redo_history_24" />
         </LinearLayout>
     </com.google.android.material.bottomappbar.BottomAppBar>
 

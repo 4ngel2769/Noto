@@ -32,6 +32,7 @@ import androidx.core.text.toSpannable
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
@@ -43,7 +44,9 @@ import androidx.navigation.navOptions
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.behavior.HideBottomViewOnScrollBehavior
 import com.google.android.material.bottomappbar.BottomAppBar
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
@@ -65,7 +68,10 @@ const val DebounceTimeoutMillis = 250L
 const val DisabledAlpha = 127
 const val EnabledAlpha = 255
 
-fun NavController.navigateSafely(directions: NavDirections, builder: (NavOptionsBuilder.() -> Unit)? = null) {
+fun NavController.navigateSafely(
+    directions: NavDirections,
+    builder: (NavOptionsBuilder.() -> Unit)? = null
+) {
     if (currentDestination?.getAction(directions.actionId) != null)
         if (builder == null)
             navigate(directions)
@@ -80,7 +86,7 @@ val Fragment.navController: NavController?
 val NavController.lastDestinationIdOrNull: Long?
     @SuppressLint("RestrictedApi")
     get() {
-        val args = backStack.lastOrNull {
+        val args = currentBackStack.value.lastOrNull {
             it.destination.id == R.id.folderFragment || it.destination.id == R.id.filteredFragment
         }?.arguments
 
@@ -99,7 +105,10 @@ fun Fragment.launchShareNotesIntent(notes: List<Note>) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, notesText)
     }
-    val chooser = Intent.createChooser(intent, context?.quantityStringResource(R.plurals.share_note, notes.count(), notes.count()))
+    val chooser = Intent.createChooser(
+        intent,
+        context?.quantityStringResource(R.plurals.share_note, notes.count(), notes.count())
+    )
     startActivity(chooser)
 }
 
@@ -141,12 +150,17 @@ fun View.setFullSpan() {
 }
 
 fun GradientDrawable.toRippleDrawable(context: Context): RippleDrawable {
-    val colorStateList = context.colorAttributeResource(R.attr.notoSecondaryColor).toColorStateList()
+    val colorStateList =
+        context.colorAttributeResource(R.attr.notoSecondaryColor).toColorStateList()
     return RippleDrawable(colorStateList, this, this)
 }
 
-fun Activity.showKeyboard(view: View) = WindowInsetsControllerCompat(window, view).show(WindowInsetsCompat.Type.ime())
-fun Activity.hideKeyboard(view: View) = WindowInsetsControllerCompat(window, view).hide(WindowInsetsCompat.Type.ime())
+fun Activity.showKeyboard(view: View) =
+    WindowInsetsControllerCompat(window, view).show(WindowInsetsCompat.Type.ime())
+
+fun Activity.hideKeyboard(view: View) =
+    WindowInsetsControllerCompat(window, view).hide(WindowInsetsCompat.Type.ime())
+
 fun View.showKeyboardUsingImm() {
     val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -204,19 +218,26 @@ fun MaterialSwitch.setupColors(
     trackCheckedColor: Int = context.colorAttributeResource(R.attr.notoPrimaryColor),
     trackUnCheckedColor: Int = context.colorAttributeResource(R.attr.notoSurfaceColor),
 ) {
-    val state = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
+    val state =
+        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf(-android.R.attr.state_checked))
     val thumbColors = intArrayOf(thumbCheckedColor, thumbUnCheckedColor)
     val trackColors = intArrayOf(trackCheckedColor, trackUnCheckedColor)
     thumbTintList = ColorStateList(state, thumbColors)
     trackTintList = ColorStateList(state, trackColors)
 }
 
-fun @receiver:ColorInt Int.withDefaultAlpha(alpha: Int = 32): Int = ColorUtils.setAlphaComponent(this, alpha)
+fun @receiver:ColorInt Int.withDefaultAlpha(alpha: Int = 32): Int =
+    ColorUtils.setAlphaComponent(this, alpha)
 
 @SuppressLint("ClickableViewAccessibility")
 inline fun BottomAppBar.setOnSwipeGestureListener(crossinline callback: () -> Unit) {
     val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+        override fun onFling(
+            e1: MotionEvent,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
             val diffY = e2.y - e1.y
             return if (diffY.absoluteValue > SwipeGestureThreshold) {
                 callback()
@@ -298,6 +319,16 @@ fun View.isFocusedAsFlow() = callbackFlow {
     awaitClose { onFocusChangeListener = null }
 }.onStart { emit(isFocused) }
 
+fun View.isFocusedAsFlow(compositeListener: OnFocusChangedCompositeListener) = callbackFlow {
+    val listener = View.OnFocusChangeListener { _, hasFocus -> trySend(hasFocus) }
+    compositeListener.registerListener(listener)
+    onFocusChangeListener = compositeListener
+    awaitClose {
+        compositeListener.unregisterListener(listener)
+        onFocusChangeListener = null
+    }
+}.onStart { emit(isFocused) }
+
 fun View.disable() {
     animate()
         .setDuration(DefaultAnimationDuration)
@@ -319,7 +350,12 @@ inline fun View.setOnSwipeGestureListener(
     threshold: Float = SwipeGestureThreshold,
 ) {
     val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+        override fun onFling(
+            e1: MotionEvent,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
             val x1 = e1.x
             val x2 = e2.x
             val diffX = x2 - x1
@@ -359,16 +395,23 @@ fun NestedScrollView.isScrollingAsFlow() = callbackFlow {
 }
 
 fun View.performClickHapticFeedback() =
-    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+    performHapticFeedback(
+        HapticFeedbackConstants.VIRTUAL_KEY,
+        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    )
 
 fun View.performLongClickHapticFeedback() =
-    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+    performHapticFeedback(
+        HapticFeedbackConstants.LONG_PRESS,
+        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+    )
 
 
 fun NavController.destinationAsFlow() = callbackFlow {
-    val listener = NavController.OnDestinationChangedListener { controller, destination, arguments ->
-        trySend(destination)
-    }
+    val listener =
+        NavController.OnDestinationChangedListener { controller, destination, arguments ->
+            trySend(destination)
+        }
     addOnDestinationChangedListener(listener)
     awaitClose { removeOnDestinationChangedListener(listener) }
 }
@@ -413,11 +456,81 @@ fun Context.highlightText(
     val boldFontSpan = tryLoadingFontResource(R.font.nunito_black)?.style?.let(::StyleSpan)
     val boldSpan = StyleSpan(Typeface.BOLD)
     spannable.apply {
-        setSpan(primaryColorSpan, textStartIndex, matchStartIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        setSpan(
+            primaryColorSpan,
+            textStartIndex,
+            matchStartIndex,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
         setSpan(primaryColorSpan, matchEndIndex, textEndIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        setSpan(secondaryColorSpan, matchStartIndex, matchEndIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        setSpan(
+            secondaryColorSpan,
+            matchStartIndex,
+            matchEndIndex,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
         setSpan(boldSpan, matchStartIndex, matchEndIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-        if (boldFontSpan != null) setSpan(boldFontSpan, matchStartIndex, matchEndIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (boldFontSpan != null) setSpan(
+            boldFontSpan,
+            matchStartIndex,
+            matchEndIndex,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
     }
     return spannable
+}
+
+fun BottomAppBar.isHiddenAsFlow() = callbackFlow {
+    val listener = HideBottomViewOnScrollBehavior.OnScrollStateChangedListener { _, state ->
+        trySend(state == BottomAppBar.Behavior.STATE_SCROLLED_DOWN)
+    }
+    addOnScrollStateChangedListener(listener)
+    awaitClose { removeOnScrollStateChangedListener(listener) }
+}
+
+fun TextView.setHighlightedText(text: String, term: String, color: NotoColor, matchIndices: IntRange? = null) {
+    val indices = text.indicesOf(term, ignoreCase = true).filter { it.first < it.last }
+    val colorResource = context?.colorResource(color.toResource()) ?: return
+    val lightColorResource = context?.colorAttributeResource(R.attr.notoSecondaryColor)?.withDefaultAlpha(DisabledAlpha / 2) ?: return
+    val onColorResource = context?.colorAttributeResource(R.attr.notoBackgroundColor) ?: return
+    val onLightColorResource = context?.colorAttributeResource(R.attr.notoPrimaryColor) ?: return
+
+    val highlightedText = text.toSpannable().apply {
+        indices.forEach { range ->
+            val backgroundColorSpan = CustomBackgroundColorSpan(context, colorResource, onColorResource, textSize)
+            val lightBackgroundColorSpan = CustomBackgroundColorSpan(context, lightColorResource, onLightColorResource, textSize)
+            val boldFontSpan = context.tryLoadingFontResource(R.font.nunito_black)?.style?.let(::StyleSpan)
+            val boldSpan = StyleSpan(Typeface.BOLD)
+            val startIndex = range.first.coerceIn(0, this.length)
+            val endIndex = range.last.coerceIn(0, this.length)
+            if (range == matchIndices) {
+                setSpan(backgroundColorSpan, startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(boldSpan, startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                if (boldFontSpan != null) setSpan(boldFontSpan, startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            } else {
+                setSpan(lightBackgroundColorSpan, startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
+    this.text = highlightedText
+}
+
+fun FloatingActionButton.hideWithAnimation() {
+    animate()
+        .scaleX(0F)
+        .scaleY(0F)
+        .alpha(0F)
+        .setDuration(DefaultAnimationDuration)
+        .withEndAction { isVisible = false }
+        .start()
+}
+
+fun FloatingActionButton.showWithAnimation() {
+    animate()
+        .scaleX(1F)
+        .scaleY(1F)
+        .alpha(1F)
+        .setDuration(DefaultAnimationDuration)
+        .withEndAction { isVisible = true }
+        .start()
 }

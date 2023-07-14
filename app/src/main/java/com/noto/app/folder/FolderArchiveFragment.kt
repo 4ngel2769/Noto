@@ -35,6 +35,10 @@ class FolderArchiveFragment : Fragment() {
 
     private lateinit var layoutManager: StaggeredGridLayoutManager
 
+    private val anchorViewId by lazy { R.id.bab }
+
+    private val folderColor by lazy { viewModel.folder.value.color }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         FolderArchiveFragmentBinding.inflate(inflater, container, false).withBinding {
             setupMixedTransitions()
@@ -43,7 +47,7 @@ class FolderArchiveFragment : Fragment() {
         }
 
     private fun FolderArchiveFragmentBinding.setupState() {
-        rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//        rv.edgeEffectFactory = BounceEdgeEffectFactory()
         rv.itemAnimator = VerticalListItemAnimator()
         layoutManager = StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL).also(rv::setLayoutManager)
 
@@ -57,11 +61,24 @@ class FolderArchiveFragment : Fragment() {
             viewModel.archivedNotes,
             viewModel.font,
             viewModel.folder,
-        ) { archivedNotes, font, folder ->
+            viewModel.isSelection,
+        ) { archivedNotes, font, folder, isSelection ->
             val notesCount = archivedNotes.getOrDefault(emptyList()).count()
-            tvFolderNotesCount.text = context?.quantityStringResource(R.plurals.notes_count, notesCount, notesCount)
-            tvFolderNotesCountRtl.text = context?.quantityStringResource(R.plurals.notes_count, notesCount, notesCount)
-            setupArchivedNotes(archivedNotes, font, folder)
+            val selectedNotesCount = archivedNotes.getOrDefault(emptyList()).count { it.isSelected }
+            if (selectedNotesCount != 0) {
+                tvFolderNotesCount.text = context?.quantityStringResource(R.plurals.notes_selected_count, notesCount, notesCount, selectedNotesCount)
+                tvFolderNotesCountRtl.text =
+                    context?.quantityStringResource(R.plurals.notes_selected_count, notesCount, notesCount, selectedNotesCount)
+                fabUnarchive.enable()
+                fabDelete.enable()
+            } else {
+                tvFolderNotesCount.text = context?.quantityStringResource(R.plurals.notes_count, notesCount, notesCount)
+                tvFolderNotesCountRtl.text = context?.quantityStringResource(R.plurals.notes_count, notesCount, notesCount)
+                fabUnarchive.disable()
+                fabDelete.disable()
+            }
+
+            setupArchivedNotes(archivedNotes, font, folder, isSelection)
         }.launchIn(lifecycleScope)
 
         if (isCurrentLocaleArabic()) {
@@ -74,6 +91,8 @@ class FolderArchiveFragment : Fragment() {
     }
 
     private fun FolderArchiveFragmentBinding.setupListeners() {
+        val savedStateHandle = navController?.currentBackStackEntry?.savedStateHandle
+
         tb.setOnClickListener {
             rv.smoothScrollToPosition(0)
         }
@@ -83,7 +102,50 @@ class FolderArchiveFragment : Fragment() {
         }
 
         activity?.onBackPressedDispatcher?.addCallback {
-            navController?.navigateUp()
+            val selectedNotes = viewModel.selectedArchivedNotes
+            if (selectedNotes.isEmpty()) navController?.navigateUp() else viewModel.deselectAllArchivedNotes()
+        }
+
+        fabUnarchive.setOnClickListener {
+            val selectedNotes = viewModel.selectedArchivedNotes
+            context?.let { context ->
+                viewModel.unarchiveSelectedArchivedNotes()
+                val text = context.quantityStringResource(R.plurals.note_is_unarchived, selectedNotes.count(), selectedNotes.count())
+                val drawableId = R.drawable.ic_round_unarchive_24
+                root.snackbar(text, drawableId, anchorViewId, folderColor)
+                context.updateAllWidgetsData()
+                context.updateNoteListWidgets()
+            }
+        }
+
+        fabDelete.setOnClickListener {
+            val selectedNotes = viewModel.selectedArchivedNotes
+            context?.let { context ->
+                val confirmationText = context.quantityStringResource(R.plurals.delete_note_confirmation, selectedNotes.count())
+                val descriptionText = context.quantityStringResource(R.plurals.delete_note_description, selectedNotes.count())
+                val btnText = context.quantityStringResource(R.plurals.delete_note, selectedNotes.count())
+                val liveData = savedStateHandle?.getLiveData<Int>(Constants.ClickListener)
+                liveData?.observe(viewLifecycleOwner) {
+                    if (it != null) {
+                        liveData.value = null
+                        viewModel.deleteSelectedArchivedNotes().invokeOnCompletion {
+                            val text = context.quantityStringResource(R.plurals.note_is_deleted, selectedNotes.count(), selectedNotes.count())
+                            val drawableId = R.drawable.ic_round_delete_24
+                            root.snackbar(text, drawableId, anchorViewId, folderColor)
+                            context.updateAllWidgetsData()
+                            context.updateNoteListWidgets()
+                        }
+                    }
+                }
+
+                navController?.navigateSafely(
+                    FolderArchiveFragmentDirections.actionFolderArchiveFragmentToConfirmationDialogFragment(
+                        confirmationText,
+                        descriptionText,
+                        btnText,
+                    )
+                )
+            }
         }
     }
 
@@ -104,7 +166,12 @@ class FolderArchiveFragment : Fragment() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun FolderArchiveFragmentBinding.setupArchivedNotes(state: UiState<List<NoteItemModel>>, font: Font, folder: Folder) {
+    private fun FolderArchiveFragmentBinding.setupArchivedNotes(
+        state: UiState<List<NoteItemModel>>,
+        font: Font,
+        folder: Folder,
+        isSelection: Boolean,
+    ) {
         if (state is UiState.Success) {
             val archivedNotes = state.value
             rv.withModels {
@@ -136,32 +203,35 @@ class FolderArchiveFragment : Fragment() {
                                     font(font)
                                     searchTerm("")
                                     previewSize(folder.notePreviewSize)
+                                    isSelection(isSelection)
                                     isShowCreationDate(folder.isShowNoteCreationDate)
                                     color(folder.color)
                                     isManualSorting(false)
                                     onClickListener { _ ->
-                                        navController
-                                            ?.navigateSafely(
-                                                FolderArchiveFragmentDirections.actionFolderArchiveFragmentToNoteFragment(
-                                                    archivedNoteModel.note.folderId,
-                                                    noteId = archivedNoteModel.note.id,
-                                                    selectedNoteIds = longArrayOf()
+                                        if (isSelection) {
+                                            if (archivedNoteModel.isSelected)
+                                                viewModel.deselectArchivedNote(archivedNoteModel.note.id)
+                                            else
+                                                viewModel.selectArchivedNote(archivedNoteModel.note.id)
+                                        } else {
+                                            navController?.navigateSafely(
+                                                FolderArchiveFragmentDirections.actionFolderArchiveFragmentToNotePagerFragment(
+                                                    args.folderId,
+                                                    archivedNoteModel.note.id,
+                                                    archivedNotes.map { it.note.id }.toLongArray(),
+                                                    isArchive = true,
                                                 )
                                             )
+                                        }
                                     }
                                     onLongClickListener { _ ->
-                                        navController
-                                            ?.navigateSafely(
-                                                FolderArchiveFragmentDirections.actionFolderArchiveFragmentToNoteDialogFragment(
-                                                    archivedNoteModel.note.folderId,
-                                                    archivedNoteModel.note.id,
-                                                    R.id.folderArchiveFragment,
-                                                    selectedNoteIds = longArrayOf(),
-                                                )
-                                            )
+                                        viewModel.enableSelection()
+                                        if (archivedNoteModel.isSelected)
+                                            viewModel.deselectArchivedNote(archivedNoteModel.note.id)
+                                        else
+                                            viewModel.selectArchivedNote(archivedNoteModel.note.id)
                                         true
                                     }
-                                    onDragHandleTouchListener { _, _ -> false }
                                 }
                             }
                         }

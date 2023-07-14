@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import com.noto.app.R
@@ -42,7 +43,7 @@ class QuickNoteDialogFragment constructor() : BaseDialogFragment(isCollapsable =
     ): View = QuickNoteDialogFragmentBinding.inflate(inflater, container, false)
         .also { binding = it }
         .withBinding {
-            rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//            rv.edgeEffectFactory = BounceEdgeEffectFactory()
             tvWordCount.animationInterpolator = DefaultInterpolator()
             tvWordCount.typeface = context?.tryLoadingFontResource(R.font.nunito_semibold)
             viewModel.folder
@@ -127,6 +128,14 @@ class QuickNoteDialogFragment constructor() : BaseDialogFragment(isCollapsable =
                         body.wordsCount,
                     )
                 }.launchIn(lifecycleScope)
+
+            if (isCurrentLocaleArabic()) {
+                tvWordCount.isVisible = false
+                tvWordCountRtl.isVisible = true
+            } else {
+                tvWordCount.isVisible = true
+                tvWordCountRtl.isVisible = false
+            }
         }
 
     override fun onDismiss(dialog: DialogInterface) {

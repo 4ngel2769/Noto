@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
 enum class FolderIdType {
@@ -76,6 +75,12 @@ class SettingsViewModel(
 
     val quickExit = settingsRepository.quickExit
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val continuousSearch = settingsRepository.continuousSearch
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val previewAutoScroll = settingsRepository.previewAutoScroll
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     var folderIdType = FolderIdType.MainInterface
         private set
@@ -159,7 +164,7 @@ class SettingsViewModel(
     }
 
     fun updateLastVersion() = viewModelScope.launch {
-        settingsRepository.updateLastVersion(Release.Version.Current)
+        settingsRepository.updateLastVersion(Release.Version.Current.format())
     }
 
     fun setMainInterfaceId(folderId: Long) = viewModelScope.launch {
@@ -190,6 +195,14 @@ class SettingsViewModel(
         settingsRepository.updateQuickExit(!quickExit.value)
     }
 
+    fun toggleContinuousSearch() = viewModelScope.launch {
+        settingsRepository.updateContinuousSearch(!continuousSearch.value)
+    }
+
+    fun togglePreviewAutoScroll() = viewModelScope.launch {
+        settingsRepository.updatePreviewAutoScroll(!previewAutoScroll.value)
+    }
+
     fun emitIsImportFinished() = viewModelScope.launch {
         mutableIsImportFinished.emit(Unit)
     }
@@ -213,5 +226,9 @@ class SettingsViewModel(
         settingsRepository.updateScheduledVaultTimeout(timeout = null)
         settingsRepository.updateIsBioAuthEnabled(isEnabled = false)
         settingsRepository.updateIsVaultOpen(isOpen = false)
+    }
+
+    fun openVault() = viewModelScope.launch {
+        settingsRepository.updateIsVaultOpen(true)
     }
 }

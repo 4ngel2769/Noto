@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import android.util.TypedValue
 import android.view.Window
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.graphics.applyCanvas
@@ -16,6 +17,7 @@ import com.noto.app.AppActivity
 import com.noto.app.R
 import com.noto.app.domain.model.Folder
 import com.noto.app.domain.model.Icon
+import com.noto.app.domain.model.Language
 
 private const val IconSize = 512
 private const val IconSpacing = 128
@@ -92,3 +94,15 @@ fun Context.getComponentNameForIcon(icon: Icon): ComponentName {
     val iconClassName = icon.toActivityAliasName(isAppActivityEnabled)
     return ComponentName(this, iconClassName)
 }
+
+fun Context.localize(language: Language): Context {
+    val locale = language.toLocale()
+    val configuration = this.resources?.configuration
+    val localizedConfiguration = Configuration(configuration).also {
+        it.setLocale(locale)
+        it.setLayoutDirection(locale)
+    }
+    return this.createConfigurationContext(localizedConfiguration) ?: this
+}
+
+fun Context.pixelsOf(unit: Int, size: Float) = TypedValue.applyDimension(unit, size, resources.displayMetrics)

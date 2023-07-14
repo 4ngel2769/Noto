@@ -18,7 +18,7 @@ import com.noto.app.domain.model.Folder
 import com.noto.app.util.*
 
 @SuppressLint("NonConstantResourceId")
-@EpoxyModelClass(layout = R.layout.folder_item)
+@EpoxyModelClass
 abstract class FolderItem : EpoxyModelWithHolder<FolderItem.Holder>() {
 
     @EpoxyAttribute
@@ -70,6 +70,8 @@ abstract class FolderItem : EpoxyModelWithHolder<FolderItem.Holder>() {
             } else {
                 if (folder.isGeneral) {
                     ivFolderIcon.setImageDrawable(context.drawableResource(R.drawable.ic_round_folder_general_24))
+                } else if (folder.isPinned) {
+                    ivFolderIcon.setImageDrawable(context.drawableResource(R.drawable.ic_round_pinned_folder_24))
                 } else {
                     ivFolderIcon.setImageDrawable(context.drawableResource(R.drawable.ic_round_folder_24))
                 }
@@ -93,6 +95,8 @@ abstract class FolderItem : EpoxyModelWithHolder<FolderItem.Holder>() {
             updateMarginsRelative(end = if (isManualSorting) 8.dp else 0.dp)
         }
     }
+
+    override fun getDefaultLayout(): Int = R.layout.folder_item
 
     class Holder : EpoxyHolder() {
         lateinit var binding: FolderItemBinding

@@ -7,8 +7,10 @@ import com.noto.app.domain.repository.*
 import com.noto.app.util.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlinx.datetime.*
+import kotlin.time.Duration.Companion.days
+
+private val ExtraDatePeriod = 1.days
 
 class NoteViewModel(
     private val folderRepository: FolderRepository,
@@ -59,11 +61,32 @@ class NoteViewModel(
     private var bodyCursorStartPosition = 0
     private var bodyCursorEndPosition = 0
 
+    private val mutableReminderDateTime = MutableStateFlow(Clock.System.now().plus(ExtraDatePeriod))
+    val reminderDateTime get() = mutableReminderDateTime.asStateFlow()
+
+    private val mutableIsFindInNoteEnabled = MutableStateFlow(false)
+    val isFindInNoteEnabled get() = mutableIsFindInNoteEnabled.asStateFlow()
+
+    private val mutableFindInNoteTerm = MutableStateFlow("")
+    val findInNoteTerm get() = mutableFindInNoteTerm.asStateFlow()
+
+    private val mutableFindInNoteIndices = MutableStateFlow(emptyMap<IntRange, Boolean>())
+    val findInNoteIndices get() = mutableFindInNoteIndices.asStateFlow()
+
+    val continuousSearch = settingsRepository.continuousSearch
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    var isTextHighlighted: Boolean = false
+        private set
+
     init {
         noteRepository.getNoteById(noteId)
             .onStart { emit(Note(noteId, folderId, position = 0, title = body.firstLineOrEmpty(), body = body.takeAfterFirstLineOrEmpty())) }
             .filterNotNull()
-            .onEach { mutableNote.value = it }
+            .onEach {
+                mutableNote.value = it
+                if (it.reminderDate != null) mutableReminderDateTime.value = it.reminderDate
+            }
             .launchIn(viewModelScope)
 
         var selectedLabels: List<Pair<Label, Boolean>>? = null
@@ -131,15 +154,19 @@ class NoteViewModel(
     }
 
     fun toggleNoteIsArchived() = viewModelScope.launch {
-        noteRepository.updateNote(note.value.copy(isArchived = !note.value.isArchived))
+        noteRepository.updateNote(note.value.copy(isArchived = !note.value.isArchived, reminderDate = null))
     }
 
     fun toggleNoteIsPinned() = viewModelScope.launch {
         noteRepository.updateNote(note.value.copy(isPinned = !note.value.isPinned))
     }
 
-    fun setNoteReminder(instant: Instant?) = viewModelScope.launch {
-        noteRepository.updateNote(note.value.copy(reminderDate = instant))
+    fun setNoteReminder() = viewModelScope.launch {
+        noteRepository.updateNote(note.value.copy(reminderDate = reminderDateTime.value))
+    }
+
+    fun cancelNoteReminder() = viewModelScope.launch {
+        noteRepository.updateNote(note.value.copy(reminderDate = null))
     }
 
     fun moveNote(folderId: Long) = viewModelScope.launch {
@@ -154,7 +181,7 @@ class NoteViewModel(
     }
 
     fun copyNote(folderId: Long) = viewModelScope.launch {
-        val noteId = noteRepository.createNote(note.value.copy(id = 0, folderId = folderId))
+        val noteId = noteRepository.createNote(note.value.copy(id = 0, folderId = folderId, creationDate = Clock.System.now()))
         labels.value.filterSelected().forEach { label ->
             launch {
                 val labelId = labelRepository.getOrCreateLabel(folderId, label)
@@ -164,7 +191,7 @@ class NoteViewModel(
     }
 
     fun duplicateNote() = viewModelScope.launch {
-        val noteId = noteRepository.createNote(note.value.copy(id = 0, reminderDate = null))
+        val noteId = noteRepository.createNote(note.value.copy(id = 0, reminderDate = null, creationDate = Clock.System.now()))
         labels.value.filterSelected().forEach { label ->
             launch {
                 noteLabelRepository.createNoteLabel(NoteLabel(noteId = noteId, labelId = label.id))
@@ -279,11 +306,78 @@ class NoteViewModel(
         bodyCursorEndPosition = position
     }
 
+    fun setReminderDate(epochMilliseconds: Long) {
+        val currentDateTime = reminderDateTime.value.toLocalDateTime(TimeZone.currentSystemDefault())
+        val updatedDateTime = Instant.fromEpochMilliseconds(epochMilliseconds).toLocalDateTime(TimeZone.UTC).let {
+            LocalDateTime(it.year, it.monthNumber, it.dayOfMonth, currentDateTime.hour, currentDateTime.minute, it.second, it.nanosecond)
+        }
+        mutableReminderDateTime.value = updatedDateTime.toInstant(TimeZone.currentSystemDefault())
+    }
+
+    fun setReminderTime(hour: Int, minute: Int) {
+        val currentDateTime = reminderDateTime.value.toLocalDateTime(TimeZone.currentSystemDefault())
+        val updatedDateTime = currentDateTime.let {
+            LocalDateTime(it.year, it.monthNumber, it.dayOfMonth, hour, minute, it.second, it.nanosecond)
+        }
+        mutableReminderDateTime.value = updatedDateTime.toInstant(TimeZone.currentSystemDefault())
+    }
+
+    fun enableFindInNote() {
+        mutableIsFindInNoteEnabled.value = true
+    }
+
+    fun disableFindInNote() {
+        mutableIsFindInNoteEnabled.value = false
+        setFindInNoteTerm("", "")
+    }
+
+    fun setFindInNoteTerm(term: String, body: String) {
+        val currentIndex = findInNoteIndices.value.toList().indexOfFirst { it.second }.coerceAtLeast(0)
+        mutableFindInNoteTerm.value = term
+        mutableFindInNoteIndices.value = if (term.isBlank()) {
+            emptyMap()
+        } else {
+            body.indicesOf(term, ignoreCase = true)
+                .mapIndexed { index, intRange -> intRange to (index == currentIndex) }
+                .toMap()
+        }
+    }
+
+    fun selectNextFindInNoteIndex() {
+        val values = findInNoteIndices.value.toList()
+        val currentIndex = values.indexOfFirst { it.second }
+        val intRange = values.getOrNull(currentIndex + 1)?.first
+
+        if (intRange != null) {
+            mutableFindInNoteIndices.value = findInNoteIndices.value.map {
+                it.key to (it.key == intRange)
+            }.toMap()
+        }
+    }
+
+    fun selectPreviousFindInNoteIndex() {
+        val values = findInNoteIndices.value.toList()
+        val currentIndex = values.indexOfFirst { it.second }
+        val intRange = values.getOrNull(currentIndex - 1)?.first
+
+        if (intRange != null) {
+            mutableFindInNoteIndices.value = findInNoteIndices.value.map {
+                it.key to (it.key == intRange)
+            }.toMap()
+        }
+    }
+
+    fun setIsTextHighlighted(isHighlighted: Boolean) {
+        isTextHighlighted = isHighlighted
+    }
+
     private fun List<Triple<Int, Int, String>>.getPreviousValueOrCurrent(currentValue: String): Triple<Int, Int, String> {
+        val lastIndex = lastIndex.coerceAtLeast(0)
         return indexOfLast { it.third == currentValue }.minus(1).coerceIn(0, lastIndex).let(this::get)
     }
 
     private fun List<Triple<Int, Int, String>>.getNextValueOrCurrent(currentValue: String): Triple<Int, Int, String> {
+        val lastIndex = lastIndex.coerceAtLeast(0)
         return indexOfFirst { it.third == currentValue }.plus(1).coerceIn(0, lastIndex).let(this::get)
     }
 }

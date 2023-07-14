@@ -8,6 +8,7 @@ import androidx.activity.addCallback
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -21,7 +22,7 @@ import com.noto.app.domain.model.Theme
 import com.noto.app.filtered.FilteredItemModel
 import com.noto.app.settings.*
 import com.noto.app.util.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class GeneralSettingsFragment : Fragment() {
@@ -56,6 +57,7 @@ class GeneralSettingsFragment : Fragment() {
                 val archivedText = stringResource(id = R.string.archived)
                 val recentNotesText = stringResource(id = R.string.recent)
                 val scheduledText = stringResource(id = R.string.scheduled)
+                val noneText = stringResource(id = R.string.none)
                 val mainInterfaceId by viewModel.mainInterfaceId.collectAsState()
                 val mainInterfaceText by produceState(initialValue = allFoldersText, mainInterfaceId) {
                     value = when (mainInterfaceId) {
@@ -64,7 +66,7 @@ class GeneralSettingsFragment : Fragment() {
                         FilteredItemModel.Recent.id -> recentNotesText
                         FilteredItemModel.Scheduled.id -> scheduledText
                         FilteredItemModel.Archived.id -> archivedText
-                        else -> viewModel.getFolderById(mainInterfaceId).first().getTitle(context)
+                        else -> viewModel.getFolderById(mainInterfaceId).firstOrNull()?.getTitle(context) ?: noneText
                     }
                 }
                 val theme by viewModel.theme.collectAsState()
@@ -76,7 +78,7 @@ class GeneralSettingsFragment : Fragment() {
                     Theme.Black -> stringResource(id = R.string.black_theme)
                 }
                 val language by viewModel.language.collectAsState()
-                val languageText = language.asString()
+                val languageText = remember(context, language) { context.stringResource(language.toResource()) }
                 val icon by viewModel.icon.collectAsState()
                 val iconText = when (icon) {
                     Icon.Futuristic -> stringResource(id = R.string.futuristic)
@@ -105,6 +107,8 @@ class GeneralSettingsFragment : Fragment() {
                     viewModel.getFolderById(quickNoteFolderId)
                         .collect { value = it.getTitle(context) }
                 }
+                val continuousSearch by viewModel.continuousSearch.collectAsState()
+                val previewAutoScroll by viewModel.previewAutoScroll.collectAsState()
 
                 Screen(title = stringResource(id = R.string.general)) {
                     SettingsSection {
@@ -118,7 +122,7 @@ class GeneralSettingsFragment : Fragment() {
                                         longArrayOf(),
                                         selectedFolderId = mainInterfaceId,
                                         isMainInterface = true,
-                                        title = context.stringResource(R.string.select_main_interface),
+                                        title = context.stringResource(R.string.main_interface),
                                     )
                                 )
                             },
@@ -135,7 +139,7 @@ class GeneralSettingsFragment : Fragment() {
                                     GeneralSettingsFragmentDirections.actionGeneralSettingsFragmentToSelectFolderDialogFragment(
                                         longArrayOf(),
                                         selectedFolderId = quickNoteFolderId,
-                                        title = context.stringResource(R.string.select_quick_note_folder)
+                                        title = context.stringResource(R.string.quick_note_folder)
                                     )
                                 )
                             },
@@ -168,13 +172,6 @@ class GeneralSettingsFragment : Fragment() {
 
                     SettingsSection {
                         SettingsItem(
-                            title = stringResource(id = R.string.notes_font),
-                            type = SettingsItemType.Text(fontText),
-                            onClick = { navController?.navigateSafely(GeneralSettingsFragmentDirections.actionGeneralSettingsFragmentToFontDialogFragment()) },
-                            painter = EmptyPainter,
-                        )
-
-                        SettingsItem(
                             title = stringResource(id = R.string.show_notes_count),
                             type = SettingsItemType.Switch(notesCountEnabled),
                             onClick = { viewModel.toggleShowNotesCount() },
@@ -195,7 +192,33 @@ class GeneralSettingsFragment : Fragment() {
                             type = SettingsItemType.Switch(quickExit),
                             onClick = { viewModel.toggleQuickExit() },
                             description = stringResource(id = R.string.quick_exit_description),
-                            painter = EmptyPainter,
+                            painter = painterResource(id = R.drawable.ic_round_quick_exit_24),
+                        )
+                    }
+
+                    SettingsSection {
+                        SettingsItem(
+                            title = stringResource(id = R.string.notes_font),
+                            type = SettingsItemType.Text(fontText),
+                            onClick = { navController?.navigateSafely(GeneralSettingsFragmentDirections.actionGeneralSettingsFragmentToFontDialogFragment()) },
+                            painter = painterResource(id = R.drawable.ic_round_font_24),
+                        )
+
+                        SettingsItem(
+                            title = stringResource(id = R.string.continuous_search),
+                            type = SettingsItemType.Switch(continuousSearch),
+                            onClick = { viewModel.toggleContinuousSearch() },
+                            description = stringResource(id = R.string.continuous_search_description),
+                            painter = painterResource(id = R.drawable.ic_round_continuous_search_24),
+                        )
+
+
+                        SettingsItem(
+                            title = stringResource(id = R.string.preview_auto_scroll),
+                            type = SettingsItemType.Switch(previewAutoScroll),
+                            onClick = { viewModel.togglePreviewAutoScroll() },
+                            description = stringResource(id = R.string.preview_auto_scroll_description),
+                            painter = painterResource(id = R.drawable.ic_round_carousel_24),
                         )
                     }
                 }

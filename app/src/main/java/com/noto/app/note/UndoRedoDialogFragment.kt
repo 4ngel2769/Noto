@@ -44,7 +44,7 @@ class UndoRedoDialogFragment : BaseDialogFragment() {
     }
 
     private fun UndoRedoDialogFragmentBinding.setupState() {
-        rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//        rv.edgeEffectFactory = BounceEdgeEffectFactory()
         rv.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
         rv.itemAnimator = VerticalListItemAnimator()
         tb.tvDialogTitle.text = context?.stringResource(if (args.isUndo) R.string.undo_history else R.string.redo_history)
@@ -58,7 +58,7 @@ class UndoRedoDialogFragment : BaseDialogFragment() {
                 context?.let { context ->
                     val colorResource = context.colorResource(folder.color.toResource())
                     tb.tvDialogTitle.setTextColor(colorResource)
-                    tb.vHead.background?.setTint(colorResource)
+                    tb.vHead.background?.mutate()?.setTint(colorResource)
                 }
 
                 val items = args.startCursorIndices
@@ -107,10 +107,11 @@ class UndoRedoDialogFragment : BaseDialogFragment() {
         color: NotoColor,
     ) {
         rv.withModels {
-            items.forEach { item ->
+            items.forEachIndexed { index, item ->
                 undoRedoItem {
                     id("${item.first} ${item.second} ${item.third}")
                     text(item.third)
+                    index(index)
                     cursorStartPosition(item.first)
                     cursorEndPosition(item.second)
                     isSelected(item.third == currentItem)

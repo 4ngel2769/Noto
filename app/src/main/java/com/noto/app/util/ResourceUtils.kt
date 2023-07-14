@@ -4,11 +4,21 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.util.TypedValue
-import androidx.annotation.*
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorInt
+import androidx.annotation.ColorRes
+import androidx.annotation.DimenRes
+import androidx.annotation.DrawableRes
+import androidx.annotation.FontRes
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.core.content.res.ResourcesCompat
 import com.noto.app.R
+import com.noto.app.domain.model.FilteringType
 import com.noto.app.domain.model.Icon
+import com.noto.app.domain.model.Language
 import com.noto.app.domain.model.NotoColor
+import com.noto.app.domain.model.ScreenBrightnessLevel
 
 fun Context.colorStateListResource(@ColorRes id: Int) = ResourcesCompat.getColorStateList(resources, id, null)
 fun Context.colorResource(@ColorRes id: Int) = ResourcesCompat.getColor(resources, id, null)
@@ -16,7 +26,9 @@ fun Context.stringResource(@StringRes id: Int, vararg formatArgs: Any? = emptyAr
 fun Context.drawableResource(@DrawableRes id: Int) = ResourcesCompat.getDrawable(resources, id, theme)
 fun Context.dimenResource(@DimenRes id: Int) = resources.getDimension(id)
 fun Context.fontResource(@FontRes id: Int) = ResourcesCompat.getFont(this, id)
-fun Context.quantityStringResource(@PluralsRes id: Int, quantity: Int, vararg formatArgs: Any?) = resources.getQuantityString(id, quantity, *formatArgs)
+fun Context.quantityStringResource(@PluralsRes id: Int, quantity: Int, vararg formatArgs: Any?) =
+    resources.getQuantityString(id, quantity, *formatArgs)
+
 fun Context.colorAttributeResource(@AttrRes id: Int): Int {
     val typedValue = TypedValue()
     theme.resolveAttribute(id, typedValue, true)
@@ -79,6 +91,47 @@ fun Icon.toTitle(): Int = when (this) {
     Icon.Fire -> R.string.fire
     Icon.Purpleberry -> R.string.purpleberry
     Icon.SanguineSun -> R.string.sanguine_sun
+}
+
+fun Language.toResource(): Int = when (this) {
+    Language.System -> R.string.follow_system
+    Language.English -> R.string.english
+    Language.Turkish -> R.string.turkish
+    Language.Arabic -> R.string.arabic
+    Language.Indonesian -> R.string.indonesian
+    Language.Russian -> R.string.russian
+    Language.Tamil -> R.string.tamil
+    Language.Spanish -> R.string.spanish
+    Language.French -> R.string.french
+    Language.German -> R.string.german
+    Language.Italian -> R.string.italian
+    Language.Czech -> R.string.czech
+    Language.Lithuanian -> R.string.lithuanian
+    Language.SimplifiedChinese -> R.string.simplified_chinese
+    Language.Portuguese -> R.string.portuguese
+}
+
+fun ScreenBrightnessLevel.toResource(): Int = when (this) {
+    ScreenBrightnessLevel.System -> R.string.follow_system
+    ScreenBrightnessLevel.Min -> R.string.min
+    ScreenBrightnessLevel.VeryLow -> R.string.very_low
+    ScreenBrightnessLevel.Low -> R.string.low
+    ScreenBrightnessLevel.Medium -> R.string.medium
+    ScreenBrightnessLevel.High -> R.string.high
+    ScreenBrightnessLevel.VeryHigh -> R.string.very_high
+    ScreenBrightnessLevel.Max -> R.string.max
+}
+
+fun FilteringType.toResource(): Int = when (this) {
+    FilteringType.Inclusive -> R.string.inclusive
+    FilteringType.Exclusive -> R.string.exclusive
+    FilteringType.Strict -> R.string.strict
+}
+
+fun FilteringType.toDescriptionResource(): Int = when (this) {
+    FilteringType.Inclusive -> R.string.inclusive_description
+    FilteringType.Exclusive -> R.string.exclusive_description
+    FilteringType.Strict -> R.string.strict_description
 }
 
 val Number.dp

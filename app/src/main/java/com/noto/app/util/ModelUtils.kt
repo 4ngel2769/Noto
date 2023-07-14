@@ -1,13 +1,8 @@
 package com.noto.app.util
 
 import android.content.Context
-import android.content.res.Configuration
 import android.util.Base64
 import android.view.View
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.core.os.LocaleListCompat
 import androidx.viewbinding.ViewBinding
 import com.noto.app.R
@@ -21,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
+import java.text.Collator
 import java.util.*
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -34,15 +30,6 @@ val SelectedLabelsComparator = compareByDescending<LabelItemModel> { it.isSelect
 private const val HashAlgorithm = "PBKDF2WithHmacSHA1"
 private const val HashIterationCount = 65536
 private const val HashKeyLength = 128
-
-inline fun <T> List<T>.sortByOrder(
-    sortingOrder: SortingOrder,
-    comparator: Comparator<T>,
-    crossinline selector: (T) -> Comparable<*>?,
-): List<T> = when (sortingOrder) {
-    SortingOrder.Ascending -> sortedWith(comparator.thenBy(selector))
-    SortingOrder.Descending -> sortedWith(comparator.thenByDescending(selector))
-}
 
 fun String?.firstLineOrEmpty() = this?.lines()?.firstOrNull()?.trim().orEmpty()
 
@@ -68,44 +55,69 @@ fun Note.format(): String = """
 val Note.isValid
     get() = title.isNotBlank() || body.isNotBlank()
 
-@Suppress("DEPRECATION")
-fun List<Pair<Folder, Int>>.sorted(
-    sortingType: FolderListSortingType,
-    sortingOrder: SortingOrder,
-) = sortByOrder(sortingOrder, comparator = compareByDescending { it.first.isPinned }) { pair ->
-    when (sortingType) {
-        FolderListSortingType.Manual -> pair.first.position
-        FolderListSortingType.CreationDate -> pair.first.creationDate
-        FolderListSortingType.Alphabetical -> pair.first.title
+@Suppress("FunctionName")
+fun NoteItemModel.Companion.Comparator(sortingOrder: SortingOrder, sortingType: NoteListSortingType): Comparator<NoteItemModel> {
+    val collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
+    val isCollatorEnabled = sortingType == NoteListSortingType.Alphabetical
+    val selector: (NoteItemModel) -> Comparable<*> = { model ->
+        when (sortingType) {
+            NoteListSortingType.Manual -> model.note.position
+            NoteListSortingType.CreationDate -> model.note.creationDate
+            NoteListSortingType.Alphabetical -> model.note.title.ifBlank { model.note.body }
+            NoteListSortingType.AccessDate -> model.note.accessDate
+        }
     }
+    return compareByDescending<NoteItemModel> { model -> model.note.isPinned }
+        .let {
+            when (sortingOrder) {
+                SortingOrder.Ascending -> if (isCollatorEnabled) it.thenBy(collator, selector) else it.thenBy(selector)
+                SortingOrder.Descending -> if (isCollatorEnabled) it.thenByDescending(collator, selector) else it.thenByDescending(selector)
+            }
+        }
 }
 
-fun List<NoteItemModel>.sorted(
-    sortingType: NoteListSortingType,
-    sortingOrder: SortingOrder,
-) = sortByOrder(sortingOrder, comparator = compareByDescending { it.note.isPinned }) { model ->
-    when (sortingType) {
-        NoteListSortingType.Manual -> model.note.position
-        NoteListSortingType.CreationDate -> model.note.creationDate
-        NoteListSortingType.Alphabetical -> model.note.title.ifBlank { model.note.body }
-        NoteListSortingType.AccessDate -> model.note.accessDate
+@Suppress("FunctionName")
+fun Note.Companion.Comparator(sortingOrder: SortingOrder, sortingType: NoteListSortingType): Comparator<Note> {
+    val collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
+    val isCollatorEnabled = sortingType == NoteListSortingType.Alphabetical
+    val selector: (Note) -> Comparable<*> = { note ->
+        when (sortingType) {
+            NoteListSortingType.Manual -> note.position
+            NoteListSortingType.CreationDate -> note.creationDate
+            NoteListSortingType.Alphabetical -> note.title.ifBlank { note.body }
+            NoteListSortingType.AccessDate -> note.accessDate
+        }
     }
+    return compareByDescending<Note> { note -> note.isPinned }
+        .let {
+            when (sortingOrder) {
+                SortingOrder.Ascending -> if (isCollatorEnabled) it.thenBy(collator, selector) else it.thenBy(selector)
+                SortingOrder.Descending -> if (isCollatorEnabled) it.thenByDescending(collator, selector) else it.thenByDescending(selector)
+            }
+        }
 }
 
-@JvmName("sortedWith")
-fun List<Note>.sorted(
-    sortingType: NoteListSortingType,
-    sortingOrder: SortingOrder,
-) = sortByOrder(sortingOrder, comparator = compareByDescending { it.isPinned }) { note ->
-    when (sortingType) {
-        NoteListSortingType.Manual -> note.position
-        NoteListSortingType.CreationDate -> note.creationDate
-        NoteListSortingType.Alphabetical -> note.title.ifBlank { note.body }
-        NoteListSortingType.AccessDate -> note.accessDate
+@Suppress("DEPRECATION", "FunctionName")
+fun Folder.Companion.Comparator(sortingOrder: SortingOrder, sortingType: FolderListSortingType): Comparator<Pair<Folder, Int>> {
+    val collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
+    val isCollatorEnabled = sortingType == FolderListSortingType.Alphabetical
+    val selector: (Pair<Folder, Int>) -> Comparable<*> = { pair ->
+        when (sortingType) {
+            FolderListSortingType.Manual -> pair.first.position
+            FolderListSortingType.CreationDate -> pair.first.creationDate
+            FolderListSortingType.Alphabetical -> pair.first.title
+        }
     }
+    return compareByDescending<Pair<Folder, Int>> { pair -> pair.first.isPinned }
+        .let {
+            when (sortingOrder) {
+                SortingOrder.Ascending -> if (isCollatorEnabled) it.thenBy(collator, selector) else it.thenBy(selector)
+                SortingOrder.Descending -> if (isCollatorEnabled) it.thenByDescending(collator, selector) else it.thenByDescending(selector)
+            }
+        }
 }
 
-fun List<NoteItemModel>.filterSelectedLabels(selectedLabels: List<Label>, filteringType: FilteringType) = filter { model ->
+fun List<NoteItemModel>.filterByLabels(selectedLabels: List<Label>, filteringType: FilteringType) = filter { model ->
     if (selectedLabels.isNotEmpty()) {
         when (filteringType) {
             FilteringType.Inclusive -> model.labels.any { label -> selectedLabels.any { it == label } }
@@ -117,8 +129,8 @@ fun List<NoteItemModel>.filterSelectedLabels(selectedLabels: List<Label>, filter
     }
 }
 
-fun List<NoteItemModel>.filterContent(content: CharSequence) = filter { model ->
-    model.note.title.contains(content, ignoreCase = true) || model.note.body.contains(content, ignoreCase = true)
+fun List<NoteItemModel>.filterBySearchTerm(searchTerm: CharSequence) = filter { model ->
+    model.note.title.contains(searchTerm, ignoreCase = true) || model.note.body.contains(searchTerm, ignoreCase = true)
 }
 
 fun List<NoteItemModel>.groupByCreationDate(
@@ -140,7 +152,7 @@ private fun Map<LocalDate, List<NoteItemModel>>.sorted(
     sortingOrder: SortingOrder,
     groupingOrder: GroupingOrder,
 ): List<Pair<LocalDate, List<NoteItemModel>>> =
-    mapValues { it.value.sorted(sortingType, sortingOrder).sortedByDescending { model -> model.note.isPinned } }
+    mapValues { it.value.sortedWith(NoteItemModel.Comparator(sortingOrder, sortingType)).sortedByDescending { model -> model.note.isPinned } }
         .map { it.toPair() }
         .let {
             if (groupingOrder == GroupingOrder.Descending)
@@ -155,7 +167,7 @@ fun List<NoteItemModel>.groupByLabels(
     groupingOrder: GroupingOrder,
 ): List<Pair<List<Label>, List<NoteItemModel>>> = map { model -> model.labels to model.copy(labels = emptyList()) }
     .groupBy({ it.first }, { it.second })
-    .mapValues { it.value.sorted(sortingType, sortingOrder).sortedByDescending { it.note.isPinned } }
+    .mapValues { it.value.sortedWith(NoteItemModel.Comparator(sortingOrder, sortingType)).sortedByDescending { it.note.isPinned } }
     .map { it.toPair() }
     .let {
         if (groupingOrder == GroupingOrder.Descending)
@@ -164,7 +176,12 @@ fun List<NoteItemModel>.groupByLabels(
             it.sortedBy { it.first.firstOrNull()?.position }
     }
 
-fun List<Note>.mapToNoteItemModel(labels: List<Label>, noteLabels: List<NoteLabel>, selectedNoteIds: LongArray = longArrayOf()): List<NoteItemModel> {
+fun List<Note>.mapToNoteItemModel(
+    labels: List<Label>,
+    noteLabels: List<NoteLabel>,
+    selectedNoteIds: LongArray = longArrayOf(),
+    draggedNoteIds: LongArray = longArrayOf(),
+): List<NoteItemModel> {
     return map { note ->
         NoteItemModel(
             note,
@@ -175,6 +192,7 @@ fun List<Note>.mapToNoteItemModel(labels: List<Label>, noteLabels: List<NoteLabe
                     }
                 },
             isSelected = selectedNoteIds.contains(note.id),
+            isDragged = draggedNoteIds.contains(note.id),
         )
     }
 }
@@ -263,50 +281,14 @@ suspend fun LabelRepository.getOrCreateLabel(folderId: Long, label: Label): Long
     return existingLabel ?: createLabel(label.copy(id = 0, folderId = folderId))
 }
 
-@Composable
-fun ScreenBrightnessLevel.asString(): String {
-    return when (this) {
-        ScreenBrightnessLevel.System -> stringResource(id = R.string.follow_system)
-        ScreenBrightnessLevel.Min -> stringResource(id = R.string.min)
-        ScreenBrightnessLevel.VeryLow -> stringResource(id = R.string.very_low)
-        ScreenBrightnessLevel.Low -> stringResource(id = R.string.low)
-        ScreenBrightnessLevel.Medium -> stringResource(id = R.string.medium)
-        ScreenBrightnessLevel.High -> stringResource(id = R.string.high)
-        ScreenBrightnessLevel.VeryHigh -> stringResource(id = R.string.very_high)
-        ScreenBrightnessLevel.Max -> stringResource(id = R.string.max)
-    }
-}
-
-@Composable
-fun Language.asString(): String {
-    return when (this) {
-        Language.System -> stringResource(id = R.string.follow_system)
-        Language.English -> stringResource(id = R.string.english)
-        Language.Turkish -> stringResource(id = R.string.turkish)
-        Language.Arabic -> stringResource(id = R.string.arabic)
-        Language.Indonesian -> stringResource(id = R.string.indonesian)
-        Language.Russian -> stringResource(id = R.string.russian)
-        Language.Tamil -> stringResource(id = R.string.tamil)
-        Language.Spanish -> stringResource(id = R.string.spanish)
-        Language.French -> stringResource(id = R.string.french)
-        Language.German -> stringResource(id = R.string.german)
-        Language.Italian -> stringResource(id = R.string.italian)
-        Language.Czech -> stringResource(id = R.string.czech)
-        Language.Lithuanian -> stringResource(id = R.string.lithuanian)
-        Language.SimplifiedChinese -> stringResource(id = R.string.simplified_chinese)
-    }
-}
-
-@Composable
-fun Language.toLocalizedContext(): Context {
-    val locale = this.toLocale()
-    val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val localizedConfiguration = Configuration(configuration).also {
-        it.setLocale(locale)
-        it.setLayoutDirection(locale)
-    }
-    return context.createConfigurationContext(localizedConfiguration) ?: context
+fun Language.Companion.Comparator(context: Context): Comparator<Language> {
+    val collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
+    return compareByDescending<Language> { it == Language.System }
+        .thenBy { it in Language.Deprecated }
+        .thenBy(collator) { it ->
+            val localizedContext = context.localize(it)
+            localizedContext.stringResource(it.toResource())
+        }
 }
 
 fun Language.toLocale(): Locale = when (this) {
@@ -324,6 +306,7 @@ fun Language.toLocale(): Locale = when (this) {
     Language.Czech -> Locale("cs")
     Language.Lithuanian -> Locale("lt")
     Language.SimplifiedChinese -> Locale("zh")
+    Language.Portuguese -> Locale("pt")
 }
 
 fun List<Language>.toLocalListCompat(): LocaleListCompat {
@@ -351,6 +334,7 @@ fun LocaleListCompat.toLanguages(): List<Language> {
             tag.startsWith("cs", ignoreCase = true) -> Language.Czech
             tag.startsWith("lt", ignoreCase = true) -> Language.Lithuanian
             tag.startsWith("zh", ignoreCase = true) -> Language.SimplifiedChinese
+            tag.startsWith("pt", ignoreCase = true) -> Language.Portuguese
             else -> Language.System
         }
     }

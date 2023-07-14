@@ -16,6 +16,7 @@ import com.noto.app.components.placeholderItem
 import com.noto.app.databinding.SelectFolderDialogFragmentBinding
 import com.noto.app.domain.model.Folder
 import com.noto.app.filtered.*
+import com.noto.app.getOrDefault
 import com.noto.app.map
 import com.noto.app.util.*
 import kotlinx.coroutines.flow.combine
@@ -45,13 +46,10 @@ class SelectFolderDialogFragment constructor() : BaseDialogFragment(isCollapsabl
         }
 
     private fun SelectFolderDialogFragmentBinding.setupState() {
-        rv.edgeEffectFactory = BounceEdgeEffectFactory()
+//        rv.edgeEffectFactory = BounceEdgeEffectFactory()
         rv.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
         rv.itemAnimator = VerticalListItemAnimator()
-        tb.tvDialogTitle.text = when {
-            args.title != null -> args.title
-            else -> context?.stringResource(R.string.select_folder)
-        }
+        tb.tvDialogTitle.text = args.title
 
         combine(
             viewModel.folders,
@@ -59,7 +57,8 @@ class SelectFolderDialogFragment constructor() : BaseDialogFragment(isCollapsabl
         ) { folders, isShowNotesCount ->
             setupFolders(
                 folders.map { it.filterRecursively { entry -> args.filteredFolderIds.none { it == entry.first.id } } },
-                isShowNotesCount
+                isShowNotesCount,
+                folders.getOrDefault(emptyList()).isEmpty(),
             )
         }.launchIn(lifecycleScope)
 
@@ -72,6 +71,7 @@ class SelectFolderDialogFragment constructor() : BaseDialogFragment(isCollapsabl
     private fun SelectFolderDialogFragmentBinding.setupFolders(
         state: UiState<List<Pair<Folder, Int>>>,
         isShowNotesCount: Boolean,
+        isEmpty: Boolean,
     ) {
         when (state) {
             is UiState.Loading -> rv.setupProgressIndicator()
@@ -171,9 +171,14 @@ class SelectFolderDialogFragment constructor() : BaseDialogFragment(isCollapsabl
                         }
 
                         if (folders.isEmpty() && generalFolder == null && !args.isNoneEnabled) {
+                            val placeholderId = when {
+                                isEmpty -> R.string.no_folders_found
+                                else -> R.string.no_relevant_folders_found
+                            }
+
                             placeholderItem {
                                 id("placeholder")
-                                placeholder(context.stringResource(R.string.no_folders_found))
+                                placeholder(context.stringResource(placeholderId))
                             }
                         } else {
                             buildFoldersModels(context, folders) { folders ->

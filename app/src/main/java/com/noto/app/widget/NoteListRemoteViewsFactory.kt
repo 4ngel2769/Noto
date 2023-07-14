@@ -55,8 +55,8 @@ class NoteListRemoteViewsFactory(private val context: Context, intent: Intent?) 
             .filterNotNull()
             .map {
                 it.mapToNoteItemModel(labels, noteLabels)
-                    .filterSelectedLabels(selectedLabels, filteringType)
-                    .sorted(folder.sortingType, folder.sortingOrder)
+                    .filterByLabels(selectedLabels, filteringType)
+                    .sortedWith(NoteItemModel.Comparator(folder.sortingOrder, folder.sortingType))
                     .sortedByDescending { it.note.isPinned }
             }
             .first()

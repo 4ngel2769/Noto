@@ -12,6 +12,7 @@ import com.noto.app.util.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 
 private const val AutoScrollDuration = 2000L
 
@@ -34,7 +35,8 @@ class FolderViewModel(
     private val mutableNotes = MutableStateFlow<UiState<List<NoteItemModel>>>(UiState.Loading)
     val notes get() = mutableNotes.asStateFlow()
 
-    private val mutableArchivedNotes = MutableStateFlow<UiState<List<NoteItemModel>>>(UiState.Loading)
+    private val mutableArchivedNotes =
+        MutableStateFlow<UiState<List<NoteItemModel>>>(UiState.Loading)
     val archivedNotes get() = mutableArchivedNotes.asStateFlow()
 
     private val mutableLabels = MutableStateFlow(emptyList<LabelItemModel>())
@@ -43,7 +45,8 @@ class FolderViewModel(
     val font = settingsRepository.font
         .stateIn(viewModelScope, SharingStarted.Lazily, Font.Nunito)
 
-    private val mutableNotoColors = MutableStateFlow(NotoColor.values().associateWith { false }.toList())
+    private val mutableNotoColors =
+        MutableStateFlow(NotoColor.values().associateWith { false }.toList())
     val notoColors get() = mutableNotoColors.asStateFlow()
 
     private val mutableIsSearchEnabled = MutableStateFlow(false)
@@ -64,7 +67,8 @@ class FolderViewModel(
     private var sortSelectedLabels = true
 
     val selectionLabels = combine(notes, labels) { notes, labels ->
-        val selectedLabels = notes.getOrDefault(emptyList()).filter { it.isSelected }.map { it.labels }.flatten()
+        val selectedLabels =
+            notes.getOrDefault(emptyList()).filter { it.isSelected }.map { it.labels }.flatten()
         labels.map { model -> LabelItemModel(model.label, selectedLabels.contains(model.label)) }
             .let {
                 if (it.isNotEmpty() && sortSelectedLabels) {
@@ -89,6 +93,15 @@ class FolderViewModel(
             .filter { it.isSelected }
             .sortedBy { it.selectionOrder }
 
+    val selectedArchivedNotes
+        get() = archivedNotes.value
+            .getOrDefault(emptyList())
+            .filter { it.isSelected }
+            .sortedBy { it.selectionOrder }
+
+    private val previewAutoScroll = settingsRepository.previewAutoScroll
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     init {
         combine(
             folderRepository.getFolderById(folderId)
@@ -99,7 +112,8 @@ class FolderViewModel(
             mutableNotoColors.value = notoColors.value.mapTrueIfSameColor(folder.color)
             mutableFolder.value = folder.mapRecursively(folders)
             if (folder.parentId != null)
-                mutableParentFolder.value = folderRepository.getFolderById(folder.parentId).firstOrNull()
+                mutableParentFolder.value =
+                    folderRepository.getFolderById(folder.parentId).firstOrNull()
         }.launchIn(viewModelScope)
 
         combine(
@@ -112,17 +126,29 @@ class FolderViewModel(
             noteLabelRepository.getNoteLabels()
                 .filterNotNull(),
         ) { notes, archivedNotes, labels, noteLabels ->
-            mutableNotes.value = notes.mapToNoteItemModel(labels, noteLabels, selectedNoteIds)
-                .sortedBy { selectedNoteIds.indexOf(it.note.id) }
-                .let { UiState.Success(it) }
-            mutableArchivedNotes.value = archivedNotes.mapToNoteItemModel(labels, noteLabels).let { UiState.Success(it) }
+            val selectedNoteIds = selectedNoteIds.toList()
+                .ifEmpty { selectedNotes.map { it.note.id } }
+                .toLongArray()
+            val draggedNoteIds = mutableNotes.value
+                .getOrDefault(emptyList())
+                .filter { it.isDragged }
+                .map { it.note.id }
+                .toLongArray()
+            mutableNotes.value =
+                notes.mapToNoteItemModel(labels, noteLabels, selectedNoteIds, draggedNoteIds)
+                    .sortedBy { selectedNoteIds.indexOf(it.note.id) }
+                    .let { UiState.Success(it) }
+            mutableArchivedNotes.value =
+                archivedNotes.mapToNoteItemModel(labels, noteLabels).let { UiState.Success(it) }
         }.launchIn(viewModelScope)
 
         labelRepository.getLabelsByFolderId(folderId)
             .filterNotNull()
             .map {
                 it.sortedBy { it.position }.map { label ->
-                    val isSelected = labels.value.find { model -> model.label.id == label.id }?.isSelected ?: false
+                    val isSelected =
+                        labels.value.find { model -> model.label.id == label.id }?.isSelected
+                            ?: false
                     LabelItemModel(label, isSelected)
                 }
             }
@@ -132,12 +158,25 @@ class FolderViewModel(
         notes
             .onEach { notesState ->
                 val isNoneSelected = notesState.getOrDefault(emptyList()).none { it.isSelected }
-                if (isNoneSelected) disableSelection()
+                if (isNoneSelected) {
+                    disableSelection()
+                    deselectAllNotes()
+                }
             }
             .launchIn(viewModelScope)
 
-        notes
-            .onEach { state ->
+        archivedNotes
+            .onEach { notesState ->
+                val isNoneSelected = notesState.getOrDefault(emptyList()).none { it.isSelected }
+                if (isNoneSelected) {
+                    disableSelection()
+                    deselectAllArchivedNotes()
+                }
+            }
+            .launchIn(viewModelScope)
+
+        notes.combine(previewAutoScroll) { state, isEnabled ->
+            if (isEnabled) {
                 val models = state.getOrDefault(emptyList()).filter { it.isSelected }
                 if (models.isNotEmpty()) {
                     while (true) {
@@ -155,7 +194,7 @@ class FolderViewModel(
                     }
                 }
             }
-            .launchIn(viewModelScope)
+        }.launchIn(viewModelScope)
     }
 
     suspend fun getFolderById(id: Long) = folderRepository.getFolderById(id).firstOrNull()
@@ -209,19 +248,41 @@ class FolderViewModel(
     }
 
     fun toggleFolderIsArchived() = viewModelScope.launch {
-        folderRepository.updateFolder(folder.value.copy(isArchived = !folder.value.isArchived, isVaulted = false, parentId = null))
+        folderRepository.updateFolder(
+            folder.value.copy(
+                isArchived = !folder.value.isArchived,
+                isVaulted = false,
+                parentId = null
+            )
+        )
         folder.value.folders.forEachRecursively { entry, _ ->
             launch {
-                folderRepository.updateFolder(entry.first.copy(isArchived = !entry.first.isArchived, isVaulted = false))
+                folderRepository.updateFolder(
+                    entry.first.copy(
+                        isArchived = !entry.first.isArchived,
+                        isVaulted = false
+                    )
+                )
             }
         }
     }
 
     fun toggleFolderIsVaulted() = viewModelScope.launch {
-        folderRepository.updateFolder(folder.value.copy(isVaulted = !folder.value.isVaulted, isArchived = false, parentId = null))
+        folderRepository.updateFolder(
+            folder.value.copy(
+                isVaulted = !folder.value.isVaulted,
+                isArchived = false,
+                parentId = null
+            )
+        )
         folder.value.folders.forEachRecursively { entry, _ ->
             launch {
-                folderRepository.updateFolder(entry.first.copy(isVaulted = !entry.first.isVaulted, isArchived = false))
+                folderRepository.updateFolder(
+                    entry.first.copy(
+                        isVaulted = !entry.first.isVaulted,
+                        isArchived = false
+                    )
+                )
             }
         }
     }
@@ -236,7 +297,12 @@ class FolderViewModel(
 
     fun updateSortingType(value: NoteListSortingType) = viewModelScope.launch {
         if (value == NoteListSortingType.Manual)
-            folderRepository.updateFolder(folder.value.copy(sortingType = value, sortingOrder = SortingOrder.Ascending))
+            folderRepository.updateFolder(
+                folder.value.copy(
+                    sortingType = value,
+                    sortingOrder = SortingOrder.Ascending
+                )
+            )
         else
             folderRepository.updateFolder(folder.value.copy(sortingType = value))
     }
@@ -296,9 +362,20 @@ class FolderViewModel(
 
     fun disableSelection() {
         mutableIsSelection.value = false
+    }
+
+    fun enableDragging(id: Long) {
         mutableNotes.value = notes.value.map {
             it.map { model ->
-                model.copy(isSelected = false, selectionOrder = -1)
+                model.copy(isSelected = false, selectionOrder = -1, isDragged = model.note.id == id)
+            }
+        }
+    }
+
+    fun disableDragging() {
+        mutableNotes.value = notes.value.map {
+            it.map { model ->
+                model.copy(isDragged = false)
             }
         }
     }
@@ -315,11 +392,37 @@ class FolderViewModel(
         }
     }
 
-    fun selectAllNotes() {
-        var selectionOrder = -1
+    fun deselectNote(id: Long) {
         mutableNotes.value = notes.value.map {
             it.map { model ->
-                model.copy(isSelected = true, selectionOrder = selectionOrder++)
+                if (model.note.id == id)
+                    model.copy(isSelected = false, selectionOrder = -1)
+                else
+                    model
+            }
+        }
+    }
+
+    fun selectAllNotes() {
+        var selectionOrder = -1
+        val filteredNotes = notes.value.getOrDefault(emptyList())
+            .filterByLabels(labels.value.filterSelected(), folder.value.filteringType)
+            .filterBySearchTerm(searchTerm.value)
+
+        mutableNotes.value = notes.value.map {
+            it.map { model ->
+                model.copy(
+                    isSelected = if (model.isSelected) true else filteredNotes.contains(model),
+                    selectionOrder = selectionOrder++,
+                )
+            }
+        }
+    }
+
+    fun deselectAllNotes() {
+        mutableNotes.value = notes.value.map {
+            it.map { model ->
+                model.copy(isSelected = false, selectionOrder = -1)
             }
         }
     }
@@ -329,23 +432,13 @@ class FolderViewModel(
         val body = selectedNotes.joinToString(LineSeparator) { it.note.body }.trim()
         val isPinned = selectedNotes.any { it.note.isPinned }
         val labels = selectedNotes.map { it.labels }.flatten()
-        val note = Note(folderId = folderId, title = title, body = body, isPinned = isPinned, position = 0)
+        val note =
+            Note(folderId = folderId, title = title, body = body, isPinned = isPinned, position = 0)
         val noteId = noteRepository.createNote(note)
         labels.forEach { label ->
             launch {
                 val noteLabel = NoteLabel(noteId = noteId, labelId = label.id)
                 noteLabelRepository.createNoteLabel(noteLabel)
-            }
-        }
-    }
-
-    fun deselectNote(id: Long) {
-        mutableNotes.value = notes.value.map {
-            it.map { model ->
-                if (model.note.id == id)
-                    model.copy(isSelected = false, selectionOrder = -1)
-                else
-                    model
             }
         }
     }
@@ -369,7 +462,7 @@ class FolderViewModel(
     fun archiveSelectedNotes() = viewModelScope.launch {
         selectedNotes.forEach { model ->
             launch {
-                noteRepository.updateNote(model.note.copy(isArchived = true))
+                noteRepository.updateNote(model.note.copy(isArchived = true, reminderDate = null))
             }
         }
     }
@@ -377,10 +470,21 @@ class FolderViewModel(
     fun duplicateSelectedNotes() = viewModelScope.launch {
         selectedNotes.forEach { model ->
             launch {
-                val noteId = noteRepository.createNote(model.note.copy(id = 0, reminderDate = null))
+                val noteId = noteRepository.createNote(
+                    model.note.copy(
+                        id = 0,
+                        reminderDate = null,
+                        creationDate = Clock.System.now()
+                    )
+                )
                 model.labels.forEach { label ->
                     launch {
-                        noteLabelRepository.createNoteLabel(NoteLabel(noteId = noteId, labelId = label.id))
+                        noteLabelRepository.createNoteLabel(
+                            NoteLabel(
+                                noteId = noteId,
+                                labelId = label.id
+                            )
+                        )
                     }
                 }
             }
@@ -394,7 +498,12 @@ class FolderViewModel(
                 model.labels.forEach { label ->
                     launch {
                         val labelId = labelRepository.getOrCreateLabel(folderId, label)
-                        noteLabelRepository.createNoteLabel(NoteLabel(labelId = labelId, noteId = model.note.id))
+                        noteLabelRepository.createNoteLabel(
+                            NoteLabel(
+                                labelId = labelId,
+                                noteId = model.note.id
+                            )
+                        )
                         noteLabelRepository.deleteNoteLabel(model.note.id, label.id)
                     }
                 }
@@ -404,11 +513,22 @@ class FolderViewModel(
 
     fun copySelectedNotes(folderId: Long) = viewModelScope.launch {
         selectedNotes.forEach { model ->
-            val noteId = noteRepository.createNote(model.note.copy(id = 0, folderId = folderId))
+            val noteId = noteRepository.createNote(
+                model.note.copy(
+                    id = 0,
+                    folderId = folderId,
+                    creationDate = Clock.System.now()
+                )
+            )
             model.labels.forEach { label ->
                 launch {
                     val labelId = labelRepository.getOrCreateLabel(folderId, label)
-                    noteLabelRepository.createNoteLabel(NoteLabel(labelId = labelId, noteId = noteId))
+                    noteLabelRepository.createNoteLabel(
+                        NoteLabel(
+                            labelId = labelId,
+                            noteId = noteId
+                        )
+                    )
                 }
             }
         }
@@ -443,7 +563,55 @@ class FolderViewModel(
         }
     }
 
-    private fun List<Pair<NotoColor, Boolean>>.mapTrueIfSameColor(notoColor: NotoColor) = map { it.first to (it.first == notoColor) }
+    fun selectArchivedNote(id: Long) {
+        mutableArchivedNotes.value = archivedNotes.value.map {
+            val selectionOrder = it.maxOf { it.selectionOrder }.plus(1)
+            it.map { model ->
+                if (model.note.id == id)
+                    model.copy(isSelected = true, selectionOrder = selectionOrder)
+                else
+                    model
+            }
+        }
+    }
+
+    fun deselectArchivedNote(id: Long) {
+        mutableArchivedNotes.value = archivedNotes.value.map {
+            it.map { model ->
+                if (model.note.id == id)
+                    model.copy(isSelected = false, selectionOrder = -1)
+                else
+                    model
+            }
+        }
+    }
+
+    fun deselectAllArchivedNotes() {
+        mutableArchivedNotes.value = archivedNotes.value.map {
+            it.map { model ->
+                model.copy(isSelected = false, selectionOrder = -1)
+            }
+        }
+    }
+
+    fun unarchiveSelectedArchivedNotes() = viewModelScope.launch {
+        selectedArchivedNotes.forEach { model ->
+            launch {
+                noteRepository.updateNote(model.note.copy(isArchived = false))
+            }
+        }
+    }
+
+    fun deleteSelectedArchivedNotes() = viewModelScope.launch {
+        selectedArchivedNotes.forEach { model ->
+            launch {
+                noteRepository.deleteNote(model.note)
+            }
+        }
+    }
+
+    private fun List<Pair<NotoColor, Boolean>>.mapTrueIfSameColor(notoColor: NotoColor) =
+        map { it.first to (it.first == notoColor) }
 
     private fun Folder.mapRecursively(allFolders: List<Folder>): Folder {
         val childFolders = allFolders

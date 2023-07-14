@@ -45,8 +45,6 @@ import com.noto.app.util.navigateSafely
 import com.noto.app.util.setupMixedTransitions
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
-private const val PlayStoreUrl = "https://play.google.com/store/apps/details?id=com.noto"
-private const val GithubIssueUrl = "https://github.com/alialbaali/Noto/issues/new"
 const val SupportNotoUrl = "https://github.com/alialbaali/Noto#support"
 val SupportNotoColor = Color(0xFFE57373)
 
@@ -65,9 +63,12 @@ class SettingsFragment : Fragment() {
         navController?.currentBackStackEntry?.savedStateHandle
             ?.getLiveData<Boolean?>(Constants.IsPasscodeValid)
             ?.run {
-                observe(viewLifecycleOwner) { isPasscodeValid: Boolean? ->
+                observe(viewLifecycleOwner) { isPasscodeValid ->
                     if (isPasscodeValid == true) {
-                        if (navController?.currentDestination?.id == R.id.validateVaultPasscodeDialogFragment) navController?.navigateUp()
+                        val currentDestinationId = navController?.currentDestination?.id
+                        val isValidateDialog = currentDestinationId == R.id.validateVaultPasscodeDialogFragment
+                        val isVaultDialog = currentDestinationId == R.id.vaultPasscodeDialogFragment
+                        if (isValidateDialog || isVaultDialog) navController?.navigateUp()
                         navController?.navigateSafely(SettingsFragmentDirections.actionSettingsFragmentToVaultSettingsFragment())
                         value = null
                     }
@@ -140,7 +141,7 @@ class SettingsFragment : Fragment() {
                         type = "text/plain"
                         putExtra(
                             Intent.EXTRA_TEXT,
-                            "$shareContentText $PlayStoreUrl"
+                            "$shareContentText ${Constants.Noto.PlayStoreUrl}"
                         )
                     }
 
@@ -154,11 +155,11 @@ class SettingsFragment : Fragment() {
                 title = stringResource(id = R.string.rate_app_on_play_store),
                 type = SettingsItemType.None,
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(PlayStoreUrl))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(Constants.Noto.PlayStoreUrl))
                     val chooser = Intent.createChooser(intent, rateText)
                     startActivity(chooser)
                 },
-                painter = painterResource(id = R.drawable.ic_round_star_rate_24),
+                painter = painterResource(id = R.drawable.ic_round_rate_review_24),
             )
         }
     }
@@ -167,22 +168,21 @@ class SettingsFragment : Fragment() {
     private fun AboutSection(modifier: Modifier = Modifier) {
         SettingsSection(modifier) {
             SettingsItem(
-                title = stringResource(id = R.string.report_issue),
-                type = SettingsItemType.None,
-                onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GithubIssueUrl))
-                    startActivity(intent)
-                },
-                painter = painterResource(id = R.drawable.ic_round_report_problem_24),
-            )
-
-            SettingsItem(
                 title = stringResource(id = R.string.whats_new),
                 type = SettingsItemType.None,
                 onClick = {
                     navController?.navigateSafely(SettingsFragmentDirections.actionSettingsFragmentToWhatsNewFragment())
                 },
-                painter = painterResource(id = R.drawable.ic_round_new_releases_24),
+                painter = painterResource(id = R.drawable.ic_round_updates_24),
+            )
+
+            SettingsItem(
+                title = stringResource(id = R.string.report_issue),
+                type = SettingsItemType.None,
+                onClick = {
+                    navController?.navigateSafely(SettingsFragmentDirections.actionSettingsFragmentToReportIssueDialogFragment())
+                },
+                painter = painterResource(id = R.drawable.ic_round_report_problem_24),
             )
 
             SettingsItem(
