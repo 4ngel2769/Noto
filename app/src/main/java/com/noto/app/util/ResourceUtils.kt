@@ -4,21 +4,10 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.util.TypedValue
-import androidx.annotation.AttrRes
-import androidx.annotation.ColorInt
-import androidx.annotation.ColorRes
-import androidx.annotation.DimenRes
-import androidx.annotation.DrawableRes
-import androidx.annotation.FontRes
-import androidx.annotation.PluralsRes
-import androidx.annotation.StringRes
+import androidx.annotation.*
 import androidx.core.content.res.ResourcesCompat
 import com.noto.app.R
-import com.noto.app.domain.model.FilteringType
-import com.noto.app.domain.model.Icon
-import com.noto.app.domain.model.Language
-import com.noto.app.domain.model.NotoColor
-import com.noto.app.domain.model.ScreenBrightnessLevel
+import com.noto.app.domain.model.*
 
 fun Context.colorStateListResource(@ColorRes id: Int) = ResourcesCompat.getColorStateList(resources, id, null)
 fun Context.colorResource(@ColorRes id: Int) = ResourcesCompat.getColor(resources, id, null)
@@ -132,6 +121,36 @@ fun FilteringType.toDescriptionResource(): Int = when (this) {
     FilteringType.Inclusive -> R.string.inclusive_description
     FilteringType.Exclusive -> R.string.exclusive_description
     FilteringType.Strict -> R.string.strict_description
+}
+
+fun SortingOrder.toResource(): Int = when (this) {
+    SortingOrder.Ascending -> R.string.ascending
+    SortingOrder.Descending -> R.string.descending
+}
+
+fun GroupingOrder.toResource(): Int = when (this) {
+    GroupingOrder.Ascending -> R.string.ascending
+    GroupingOrder.Descending -> R.string.descending
+}
+
+fun Grouping.toResource(): Int = when (this) {
+    Grouping.None -> R.string.none
+    Grouping.CreationDate -> R.string.creation_date
+    Grouping.Label -> R.string.label
+    Grouping.AccessDate -> R.string.access_date
+}
+
+fun NoteListSortingType.toResource(): Int = when (this) {
+    NoteListSortingType.Manual -> R.string.manual
+    NoteListSortingType.CreationDate -> R.string.creation_date
+    NoteListSortingType.Alphabetical -> R.string.alphabetical
+    NoteListSortingType.AccessDate -> R.string.access_date
+}
+
+fun FolderListSortingType.toResource(): Int = when (this) {
+    FolderListSortingType.Manual -> R.string.manual
+    FolderListSortingType.CreationDate -> R.string.creation_date
+    FolderListSortingType.Alphabetical -> R.string.alphabetical
 }
 
 val Number.dp

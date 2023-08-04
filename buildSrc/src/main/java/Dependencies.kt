@@ -13,15 +13,15 @@ object Libraries {
 
 object Versions {
     const val JavaTime = "1.1.5"
-    const val Kotlin = "1.8.22"
+    const val Kotlin = "1.9.0"
     const val Android = "8.0.2"
     const val Epoxy = "5.1.3"
-    const val Compose = "1.4.8"
+    const val Compose = "1.5.0"
 }
 
 object App {
-    const val VersionName = "2.3.0-Beta2"
-    const val VersionCode = 56
+    const val VersionName = "2.3.0-Beta3"
+    const val VersionCode = 57
     const val ID = "com.noto"
     const val Namespace = "com.noto.app"
     const val MinSDK = 21
@@ -34,4 +34,6 @@ object Plugins {
     const val AndroidApplication = "com.android.application"
     const val KotlinAndroid = "android"
     const val NavigationSafeArgs = "androidx.navigation.safeargs.kotlin"
+    const val KotlinSerialization = "plugin.serialization"
+    const val KSP = "com.google.devtools.ksp"
 }

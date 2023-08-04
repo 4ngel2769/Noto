@@ -4,15 +4,25 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.fragment.navArgs
+import com.noto.app.NotoTheme
 import com.noto.app.R
-import com.noto.app.components.BaseDialogFragment
-import com.noto.app.databinding.NoteListViewDialogFragmentBinding
+import com.noto.app.components.*
 import com.noto.app.domain.model.*
-import com.noto.app.util.*
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import com.noto.app.toColor
+import com.noto.app.util.Constants
+import com.noto.app.util.navController
+import com.noto.app.util.navigateSafely
+import com.noto.app.util.toResource
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 
@@ -26,104 +36,127 @@ class NoteListViewDialogFragment : BaseDialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View = NoteListViewDialogFragmentBinding.inflate(inflater, container, false).withBinding {
-        tb.tvDialogTitle.text = context?.stringResource(R.string.notes_view)
+    ): View? = context?.let { context ->
+        val navController = navController
+        val savedStateHandle = navController?.currentBackStackEntry?.savedStateHandle
 
-        viewModel.folder
-            .onEach { folder ->
-                context?.let { context ->
-                    val color = context.colorResource(folder.color.toResource())
-                    val colorStateList = color.toColorStateList()
-                    tb.tvDialogTitle.setTextColor(color)
-                    tb.vHead.background?.mutate()?.setTint(color)
-                    btnApply.background?.mutate()?.setTint(color)
-                    listOf(llSortingType, llGroupingType, llFiltering, llSortingOrder, llGroupingOrder)
-                        .onEach { ll -> ll.background?.setRippleColor(colorStateList) }
-                    tvFilteringValue.text = when (folder.filteringType) {
-                        FilteringType.Inclusive -> R.string.inclusive
-                        FilteringType.Exclusive -> R.string.exclusive
-                        FilteringType.Strict -> R.string.strict
-                    }.let(context::stringResource)
-                    tvSortingTypeValue.text = when (folder.sortingType) {
-                        NoteListSortingType.Manual -> R.string.manual
-                        NoteListSortingType.CreationDate -> R.string.creation_date
-                        NoteListSortingType.Alphabetical -> R.string.alphabetical
-                        NoteListSortingType.AccessDate -> R.string.access_date
-                    }.let(context::stringResource)
-                    tvSortingOrderValue.text = when (folder.sortingOrder) {
-                        SortingOrder.Ascending -> R.string.ascending
-                        SortingOrder.Descending -> R.string.descending
-                    }.let(context::stringResource)
-                    tvGroupingTypeValue.text = when (folder.grouping) {
-                        Grouping.None -> R.string.none
-                        Grouping.CreationDate -> R.string.creation_date
-                        Grouping.Label -> R.string.label
-                        Grouping.AccessDate -> R.string.access_date
-                    }.let(context::stringResource)
-                    tvGroupingOrderValue.text = when (folder.groupingOrder) {
-                        GroupingOrder.Ascending -> R.string.ascending
-                        GroupingOrder.Descending -> R.string.descending
-                    }.let(context::stringResource)
-                }
-                if (folder.sortingType == NoteListSortingType.Manual) {
-                    llSortingOrder.isClickable = false
-                    llSortingOrder.disable()
-                } else {
-                    llSortingOrder.isClickable = true
-                    llSortingOrder.enable()
-                }
-                if (folder.grouping == Grouping.None) {
-                    llGroupingOrder.isClickable = false
-                    llGroupingOrder.disable()
-                } else {
-                    llGroupingOrder.isClickable = true
-                    llGroupingOrder.enable()
+        ComposeView(context).apply {
+            if (navController == null || savedStateHandle == null) return@apply
+
+            setContent {
+                val folder by viewModel.folder.collectAsState()
+                val filteringType by savedStateHandle.getStateFlow<FilteringType?>(key = Constants.FilteringType, initialValue = null)
+                    .collectAsState()
+                val sortingType by savedStateHandle.getStateFlow<NoteListSortingType?>(key = Constants.SortingType, initialValue = null)
+                    .collectAsState()
+                val sortingOrder by savedStateHandle.getStateFlow<SortingOrder?>(key = Constants.SortingOrder, initialValue = null)
+                    .collectAsState()
+                val groupingType by savedStateHandle.getStateFlow<Grouping?>(key = Constants.GroupingType, initialValue = null)
+                    .collectAsState()
+                val groupingOrder by savedStateHandle.getStateFlow<GroupingOrder?>(key = Constants.GroupingOrder, initialValue = null)
+                    .collectAsState()
+
+                BottomSheetDialog(title = stringResource(R.string.notes_view), headerColor = folder.color.toColor()) {
+                    BottomSheetDialogItem(
+                        text = stringResource(id = R.string.filtering),
+                        onClick = {
+                            navController.navigateSafely(
+                                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListFilteringDialogFragment(
+                                    args.folderId
+                                )
+                            )
+                        },
+                        painter = painterResource(id = R.drawable.ic_round_filtering_24),
+                        value = stringResource(id = filteringType?.toResource() ?: folder.filteringType.toResource()),
+                        rippleColor = folder.color.toColor(),
+                    )
+
+                    Spacer(modifier = Modifier.height(NotoTheme.dimensions.medium))
+
+                    Group {
+                        BottomSheetDialogItem(
+                            text = stringResource(id = R.string.sorting),
+                            onClick = {
+                                navController.navigateSafely(
+                                    NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListSortingDialogFragment(
+                                        args.folderId
+                                    )
+                                )
+                            },
+                            painter = painterResource(id = R.drawable.ic_round_sorting_24),
+                            value = stringResource(id = sortingType?.toResource() ?: folder.sortingType.toResource()),
+                            rippleColor = folder.color.toColor(),
+                        )
+
+                        BottomSheetDialogItem(
+                            text = stringResource(id = R.string.ordering),
+                            onClick = {
+                                navController.navigateSafely(
+                                    NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListOrderingDialogFragment(
+                                        args.folderId,
+                                        isSorting = true,
+                                    )
+                                )
+                            },
+                            painter = painterResource(id = R.drawable.ic_round_ordering_24),
+                            value = stringResource(id = sortingOrder?.toResource() ?: folder.sortingOrder.toResource()),
+                            enabled = (sortingType ?: folder.sortingType) != NoteListSortingType.Manual,
+                            rippleColor = folder.color.toColor(),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(NotoTheme.dimensions.medium))
+
+                    Group {
+                        BottomSheetDialogItem(
+                            text = stringResource(id = R.string.grouping),
+                            onClick = {
+                                navController.navigateSafely(
+                                    NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListGroupingDialogFragment(
+                                        args.folderId
+                                    )
+                                )
+                            },
+                            painter = painterResource(id = R.drawable.ic_round_table_view_24),
+                            value = stringResource(id = groupingType?.toResource() ?: folder.grouping.toResource()),
+                            rippleColor = folder.color.toColor(),
+                        )
+
+                        BottomSheetDialogItem(
+                            text = stringResource(id = R.string.ordering),
+                            onClick = {
+                                navController.navigateSafely(
+                                    NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListOrderingDialogFragment(
+                                        args.folderId,
+                                        isSorting = false,
+                                    )
+                                )
+                            },
+                            painter = painterResource(id = R.drawable.ic_round_ordering_24),
+                            value = stringResource(id = groupingOrder?.toResource() ?: folder.groupingOrder.toResource()),
+                            enabled = (groupingType ?: folder.grouping) != Grouping.None,
+                            rippleColor = folder.color.toColor(),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(NotoTheme.dimensions.extraLarge))
+
+                    Button(
+                        text = stringResource(id = R.string.apply),
+                        onClick = {
+                            viewModel.updateFolderNotesView(
+                                filteringType = filteringType ?: folder.filteringType,
+                                sortingType = sortingType ?: folder.sortingType,
+                                sortingOrder = sortingOrder ?: folder.sortingOrder,
+                                groupingType = groupingType ?: folder.grouping,
+                                groupingOrder = groupingOrder ?: folder.groupingOrder,
+                            ).invokeOnCompletion { dismiss() }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        containerColor = folder.color.toColor(),
+                    )
                 }
             }
-            .launchIn(lifecycleScope)
-
-        llFiltering.setOnClickListener {
-            navController?.navigateSafely(
-                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListFilteringDialogFragment(
-                    args.folderId
-                )
-            )
-        }
-
-        llSortingType.setOnClickListener {
-            navController?.navigateSafely(
-                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListSortingDialogFragment(
-                    args.folderId
-                )
-            )
-        }
-
-        llSortingOrder.setOnClickListener {
-            navController?.navigateSafely(
-                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListOrderingDialogFragment(
-                    args.folderId, isSorting = true,
-                )
-            )
-        }
-
-        llGroupingType.setOnClickListener {
-            navController?.navigateSafely(
-                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListGroupingDialogFragment(
-                    args.folderId
-                )
-            )
-        }
-
-        llGroupingOrder.setOnClickListener {
-            navController?.navigateSafely(
-                NoteListViewDialogFragmentDirections.actionNoteListViewDialogFragmentToNoteListOrderingDialogFragment(
-                    args.folderId, isSorting = false,
-                )
-            )
-        }
-
-        btnApply.setOnClickListener {
-            dismiss()
         }
     }
 }

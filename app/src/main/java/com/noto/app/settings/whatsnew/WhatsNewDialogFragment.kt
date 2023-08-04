@@ -22,6 +22,7 @@ import com.noto.app.NotoTheme
 import com.noto.app.R
 import com.noto.app.components.BaseDialogFragment
 import com.noto.app.components.BottomSheetDialog
+import com.noto.app.components.TelegramBanner
 import com.noto.app.domain.model.Release
 import com.noto.app.settings.SettingsItem
 import com.noto.app.settings.SettingsItemType
@@ -43,15 +44,19 @@ class WhatsNewDialogFragment : BaseDialogFragment(isCollapsable = true) {
             setContent {
                 val currentRelease = remember(context) { Release.Current(context) }
                 val version = remember(currentRelease) { currentRelease.versionFormatted }
-                val changelog = remember(currentRelease) { currentRelease.changelog.changes }
+                val changelog = remember(currentRelease) { currentRelease.changelog.changesIds }
                 BottomSheetDialog(
                     title = stringResource(id = R.string.whats_new_in, version),
                     painter = painterResource(id = R.drawable.ic_round_auto_awesome_24),
                 ) {
+                    TelegramBanner()
+
+                    Spacer(modifier = Modifier.height(NotoTheme.dimensions.extraLarge))
+
                     SettingsSection {
-                        changelog.forEach { item ->
+                        changelog.forEach { id ->
                             SettingsItem(
-                                title = item,
+                                title = stringResource(id = id),
                                 type = SettingsItemType.None,
                                 painter = painterResource(id = R.drawable.ic_round_check_24),
                             )

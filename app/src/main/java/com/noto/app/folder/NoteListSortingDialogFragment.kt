@@ -4,18 +4,23 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.fragment.navArgs
 import com.noto.app.R
 import com.noto.app.components.BaseDialogFragment
-import com.noto.app.databinding.NoteListSortingDialogFragmentBinding
+import com.noto.app.components.BottomSheetDialog
+import com.noto.app.components.SelectableDialogItem
 import com.noto.app.domain.model.NoteListSortingType
-import com.noto.app.util.colorResource
-import com.noto.app.util.stringResource
+import com.noto.app.toColor
+import com.noto.app.util.Constants
+import com.noto.app.util.navController
 import com.noto.app.util.toResource
-import com.noto.app.util.withBinding
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 
@@ -29,44 +34,31 @@ class NoteListSortingDialogFragment : BaseDialogFragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View = NoteListSortingDialogFragmentBinding.inflate(inflater, container, false).withBinding {
-        tb.tvDialogTitle.text = context?.stringResource(R.string.sorting)
+    ): View? = context?.let { context ->
+        val navController = navController
+        val savedStateHandle = navController?.previousBackStackEntry?.savedStateHandle
 
-        viewModel.folder
-            .onEach { folder ->
-                context?.let { context ->
-                    val color = context.colorResource(folder.color.toResource())
-                    tb.tvDialogTitle.setTextColor(color)
-                    tb.vHead.background?.mutate()?.setTint(color)
-                    when (folder.sortingType) {
-                        NoteListSortingType.Alphabetical -> rbAlphabetical.isChecked = true
-                        NoteListSortingType.CreationDate -> rbCreationDate.isChecked = true
-                        NoteListSortingType.Manual -> rbManual.isChecked = true
-                        NoteListSortingType.AccessDate -> rbAccessDate.isChecked = true
+        ComposeView(context).apply {
+            if (navController == null || savedStateHandle == null) return@apply
+
+            setContent {
+                val folder by viewModel.folder.collectAsState()
+                val types = NoteListSortingType.entries
+                val sortingType by savedStateHandle.getStateFlow<NoteListSortingType?>(key = Constants.SortingType, initialValue = null)
+                    .collectAsState()
+
+                BottomSheetDialog(title = stringResource(R.string.sorting), headerColor = folder.color.toColor()) {
+                    types.forEach { type ->
+                        SelectableDialogItem(
+                            selected = type == (sortingType ?: folder.sortingType),
+                            onClick = { navController.previousBackStackEntry?.savedStateHandle?.set(Constants.SortingType, type); dismiss() },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = stringResource(id = type.toResource()))
+                        }
                     }
-
                 }
             }
-            .launchIn(lifecycleScope)
-
-        rbManual.setOnClickListener {
-            viewModel.updateSortingType(NoteListSortingType.Manual)
-                .invokeOnCompletion { dismiss() }
-        }
-
-        rbCreationDate.setOnClickListener {
-            viewModel.updateSortingType(NoteListSortingType.CreationDate)
-                .invokeOnCompletion { dismiss() }
-        }
-
-        rbAlphabetical.setOnClickListener {
-            viewModel.updateSortingType(NoteListSortingType.Alphabetical)
-                .invokeOnCompletion { dismiss() }
-        }
-
-        rbAccessDate.setOnClickListener {
-            viewModel.updateSortingType(NoteListSortingType.AccessDate)
-                .invokeOnCompletion { dismiss() }
         }
     }
 }

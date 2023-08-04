@@ -24,6 +24,8 @@ import com.noto.app.components.MediumSubtitle
 import com.noto.app.components.SelectableDialogItem
 import com.noto.app.domain.model.FilteringType
 import com.noto.app.toColor
+import com.noto.app.util.Constants
+import com.noto.app.util.navController
 import com.noto.app.util.toAnnotatedString
 import com.noto.app.util.toDescriptionResource
 import com.noto.app.util.toResource
@@ -41,10 +43,17 @@ class NoteListFilteringDialogFragment : BaseDialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View? = context?.let { context ->
+        val navController = navController
+        val savedStateHandle = navController?.previousBackStackEntry?.savedStateHandle
+
         ComposeView(context).apply {
+            if (navController == null || savedStateHandle == null) return@apply
+
             setContent {
                 val folder by viewModel.folder.collectAsState()
-                val types = remember { FilteringType.values() }
+                val types = FilteringType.entries
+                val filteringType by savedStateHandle.getStateFlow<FilteringType?>(key = Constants.FilteringType, initialValue = null)
+                    .collectAsState()
 
                 BottomSheetDialog(title = stringResource(R.string.filtering), headerColor = folder.color.toColor()) {
                     types.forEach { type ->
@@ -53,8 +62,8 @@ class NoteListFilteringDialogFragment : BaseDialogFragment() {
                         }
 
                         SelectableDialogItem(
-                            selected = folder.filteringType == type,
-                            onClick = { viewModel.updateFiltering(type).invokeOnCompletion { dismiss() } },
+                            selected = type == (filteringType ?: folder.filteringType),
+                            onClick = { navController.previousBackStackEntry?.savedStateHandle?.set(Constants.FilteringType, type); dismiss() },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(NotoTheme.dimensions.extraSmall)) {

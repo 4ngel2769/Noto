@@ -24,6 +24,11 @@ object Constants {
     const val Model = "model"
     const val EmailType = "mailto:"
     const val DisableSelection = "DisableSelection"
+    const val FilteringType = "FilteringType"
+    const val SortingType = "SortingType"
+    const val SortingOrder = "SortingOrder"
+    const val GroupingType = "GroupingType"
+    const val GroupingOrder = "GroupingOrder"
 
     object Intent {
         const val ActionCreateFolder = "com.noto.intent.action.CREATE_FOLDER"
@@ -40,7 +45,7 @@ object Constants {
         const val LicenseUrl = "https://www.apache.org/licenses/LICENSE-2.0"
         const val PlayStoreUrl = "https://play.google.com/store/apps/details?id=com.noto"
         const val GithubUrl = "https://github.com/alialbaali/Noto"
-        const val RedditUrl = "https://reddit.com/r/notoapp"
+        const val TelegramUrl = "https://t.me/notoapp"
         const val PrivacyPolicyUrl = "https://github.com/alialbaali/Noto/blob/master/PrivacyPolicy.md"
         const val GithubIssueUrl = "https://github.com/alialbaali/Noto/issues/new"
         const val ReportIssueEmailSubject = "Issue Regarding Noto"
