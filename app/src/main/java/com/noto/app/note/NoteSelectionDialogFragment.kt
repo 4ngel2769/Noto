@@ -21,7 +21,24 @@ import com.noto.app.databinding.NoteSelectionDialogFragmentBinding
 import com.noto.app.folder.FolderViewModel
 import com.noto.app.folder.noteItem
 import com.noto.app.label.labelItem
-import com.noto.app.util.*
+import com.noto.app.util.Constants
+import com.noto.app.util.LineSeparator
+import com.noto.app.util.SmoothLinearLayoutManager
+import com.noto.app.util.cancelAlarm
+import com.noto.app.util.colorResource
+import com.noto.app.util.drawableResource
+import com.noto.app.util.format
+import com.noto.app.util.getTitle
+import com.noto.app.util.launchShareNotesIntent
+import com.noto.app.util.navController
+import com.noto.app.util.navigateSafely
+import com.noto.app.util.quantityStringResource
+import com.noto.app.util.snackbar
+import com.noto.app.util.stringResource
+import com.noto.app.util.toResource
+import com.noto.app.util.updateAllWidgetsData
+import com.noto.app.util.updateNoteListWidgets
+import com.noto.app.util.withBinding
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
@@ -184,6 +201,7 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         val savedStateHandle = navController?.currentBackStackEntry?.savedStateHandle
 
         tvReadingMode.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             navController?.navigateSafely(
                 NoteSelectionDialogFragmentDirections.actionNoteSelectionDialogFragmentToNotePagerFragment(
@@ -196,6 +214,7 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvMergeNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             viewModel.mergeSelectedNotes().invokeOnCompletion {
                 context?.let { context ->
@@ -210,12 +229,14 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvShareNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             launchShareNotesIntent(selectedNotes)
             dismiss()
         }
 
         tvArchiveNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             viewModel.archiveSelectedNotes().invokeOnCompletion {
                 context?.let { context ->
@@ -232,6 +253,7 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvDuplicateNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             viewModel.duplicateSelectedNotes().invokeOnCompletion {
                 context?.let { context ->
@@ -245,6 +267,7 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvCopyToClipboard.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             context?.let { context ->
                 val notesText = selectedNotes.joinToString(LineSeparator) { it.format() }
@@ -260,12 +283,19 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvCopyNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             savedStateHandle?.getLiveData<Long>(Constants.FolderId)
                 ?.observe(viewLifecycleOwner) { folderId ->
-                    viewModel.copySelectedNotes(folderId).invokeOnCompletion {
-                        context?.let { context ->
-                            val folderTitle = savedStateHandle.get<String>(Constants.FolderTitle)
+                    context?.let { context ->
+                        val folderTitle = savedStateHandle.get<String>(Constants.FolderTitle)
+                        navController?.navigateUp()
+                        navController?.navigateSafely(
+                            NoteSelectionDialogFragmentDirections.actionNoteSelectionDialogFragmentToProgressIndicatorDialogFragment(
+                                title = context.stringResource(R.string.copying_notes, folderTitle)
+                            )
+                        )
+                        viewModel.copySelectedNotes(folderId).invokeOnCompletion {
                             val text = context.quantityStringResource(
                                 R.plurals.note_is_copied,
                                 selectedNotes.count(),
@@ -276,8 +306,8 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
                             parentView?.snackbar(text, drawableId, anchorViewId, folderColor)
                             context.updateAllWidgetsData()
                             context.updateNoteListWidgets()
+                            dismiss()
                         }
-                        dismiss()
                     }
                 }
             context?.let { context ->
@@ -291,12 +321,19 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvMoveNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             savedStateHandle?.getLiveData<Long>(Constants.FolderId)
                 ?.observe(viewLifecycleOwner) { folderId ->
-                    viewModel.moveSelectedNotes(folderId).invokeOnCompletion {
-                        context?.let { context ->
-                            val folderTitle = savedStateHandle.get<String>(Constants.FolderTitle)
+                    context?.let { context ->
+                        val folderTitle = savedStateHandle.get<String>(Constants.FolderTitle)
+                        navController?.navigateUp()
+                        navController?.navigateSafely(
+                            NoteSelectionDialogFragmentDirections.actionNoteSelectionDialogFragmentToProgressIndicatorDialogFragment(
+                                title = context.stringResource(R.string.moving_notes, folderTitle)
+                            )
+                        )
+                        viewModel.moveSelectedNotes(folderId).invokeOnCompletion {
                             val text = context.quantityStringResource(
                                 R.plurals.note_is_moved,
                                 selectedNotes.count(),
@@ -307,8 +344,8 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
                             parentView?.snackbar(text, drawableId, anchorViewId, folderColor)
                             context.updateAllWidgetsData()
                             context.updateNoteListWidgets()
+                            dismiss()
                         }
-                        dismiss()
                     }
                 }
             context?.let { context ->
@@ -322,6 +359,7 @@ class NoteSelectionDialogFragment : BaseDialogFragment() {
         }
 
         tvDeleteNotes.setOnClickListener {
+            val selectedNotes = selectedNotes
             disableSelection()
             context?.let { context ->
                 val confirmationText = context.quantityStringResource(R.plurals.delete_note_confirmation, selectedNotes.count())
