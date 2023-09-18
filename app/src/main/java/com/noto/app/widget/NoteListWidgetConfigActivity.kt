@@ -15,20 +15,7 @@ import com.noto.app.domain.model.FilteringType
 import com.noto.app.domain.model.NotoColor
 import com.noto.app.label.labelItem
 import com.noto.app.main.SelectFolderDialogFragment
-import com.noto.app.util.Constants
-import com.noto.app.util.colorResource
-import com.noto.app.util.dp
-import com.noto.app.util.drawableResource
-import com.noto.app.util.filterSelected
-import com.noto.app.util.filterByLabels
-import com.noto.app.util.getTitle
-import com.noto.app.util.setupColors
-import com.noto.app.util.stringResource
-import com.noto.app.util.toResource
-import com.noto.app.util.toWidgetHeaderShapeId
-import com.noto.app.util.toWidgetShapeId
-import com.noto.app.util.updateNoteWidget
-import com.noto.app.util.withBinding
+import com.noto.app.util.*
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -50,6 +37,7 @@ class NoteListWidgetConfigActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (appViewModel.currentTheme == null) return
         NoteListWidgetConfigActivityBinding.inflate(layoutInflater).withBinding {
             setContentView(root)
             if (folderId == 0L)
@@ -91,7 +79,7 @@ class NoteListWidgetConfigActivity : BaseActivity() {
             viewModel.widgetFilteringType,
         ) { folder, notes, labels, filteringType ->
             val filteredNotes = notes.filterByLabels(labels.filterSelected(), filteringType)
-            val color = colorResource(folder.color.toResource())
+            val color = colorResource(folder.color.toColorResourceId())
             val placeholderId = when {
                 notes.isEmpty() -> R.string.folder_is_empty
                 else -> R.string.no_notes_found_labels
@@ -195,7 +183,7 @@ class NoteListWidgetConfigActivity : BaseActivity() {
             .launchIn(lifecycleScope)
 
         viewModel.icon
-            .onEach { icon -> widget.ivAppIcon.setImageResource(icon.toResource()) }
+            .onEach { icon -> widget.ivAppIcon.setImageResource(icon.toDrawableResourceId()) }
             .launchIn(lifecycleScope)
     }
 

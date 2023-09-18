@@ -40,11 +40,12 @@ class NoteFragment : Fragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         NoteFragmentBinding.inflate(inflater, container, false).withBinding {
-//            setupMixedTransitions() // Temporally disabled due to focus isn't being set to the title.
+            setupMixedTransitions()
             setupState()
             setupListeners()
         }
 
+    @Suppress("UNCHECKED_CAST")
     @OptIn(FlowPreview::class)
     private fun NoteFragmentBinding.setupState() {
 //        rv.edgeEffectFactory = BounceEdgeEffectFactory()
@@ -414,12 +415,14 @@ class NoteFragment : Fragment() {
 
         etNoteTitle.textAsFlow(emitInitialText = true)
             .filterNotNull()
-            .onEach { nsv.smoothScrollBy(0, etNoteTitle.height) }
+            .distinctUntilChangedBy { etNoteTitle.lineCount }
+            .onEach { etNoteTitle.post { nsv.smoothScrollTo(0, etNoteTitle.currentLineScrollPosition, DefaultAnimationDuration.toInt()) } }
             .launchIn(lifecycleScope)
 
         etNoteBody.textAsFlow(emitInitialText = true)
             .filterNotNull()
-            .onEach { nsv.smoothScrollBy(0, etNoteBody.height) }
+            .distinctUntilChangedBy { etNoteBody.lineCount }
+            .onEach { etNoteBody.post { nsv.smoothScrollTo(0, etNoteBody.currentLineScrollPosition, DefaultAnimationDuration.toInt()) } }
             .launchIn(lifecycleScope)
 
         savedStateHandle?.getLiveData<String>(Constants.NoteTitle)
@@ -558,12 +561,16 @@ class NoteFragment : Fragment() {
         ibUndo.setOnClickListener {
             when {
                 etNoteTitle.isFocused -> {
-                    val index = viewModel.undoTitle().second
+                    val triple = viewModel.undoTitle()
+                    val lastIndex = triple.third.lastIndex.takeUnless { it == -1 } ?: 0
+                    val index = triple.second.coerceIn(0, lastIndex)
                     etNoteTitle.setSelection(index)
                 }
 
                 etNoteBody.isFocused -> {
-                    val index = viewModel.undoBody().second
+                    val triple = viewModel.undoBody()
+                    val lastIndex = triple.third.lastIndex.takeUnless { it == -1 } ?: 0
+                    val index = triple.second.coerceIn(0, lastIndex)
                     etNoteBody.setSelection(index)
                 }
             }
@@ -572,12 +579,16 @@ class NoteFragment : Fragment() {
         ibRedo.setOnClickListener {
             when {
                 etNoteTitle.isFocused -> {
-                    val index = viewModel.redoTitle().second
+                    val triple = viewModel.redoTitle()
+                    val lastIndex = triple.third.lastIndex.takeUnless { it == -1 } ?: 0
+                    val index = triple.second.coerceIn(0, lastIndex)
                     etNoteTitle.setSelection(index)
                 }
 
                 etNoteBody.isFocused -> {
-                    val index = viewModel.redoBody().second
+                    val triple = viewModel.redoBody()
+                    val lastIndex = triple.third.lastIndex.takeUnless { it == -1 } ?: 0
+                    val index = triple.second.coerceIn(0, lastIndex)
                     etNoteBody.setSelection(index)
                 }
             }
@@ -741,7 +752,7 @@ class NoteFragment : Fragment() {
 
     private fun NoteFragmentBinding.setupFolder(folder: Folder) {
         context?.let { context ->
-            val color = context.colorResource(folder.color.toResource())
+            val color = context.colorResource(folder.color.toColorResourceId())
             val highlightColor = color.withDefaultAlpha(alpha = if (folder.color == NotoColor.Black) 32 else 128)
             val backgroundColor = context.colorAttributeResource(R.attr.notoBackgroundColor)
             tvFolderTitle.text = folder.getTitle(context)

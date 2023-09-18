@@ -17,13 +17,15 @@ import androidx.fragment.app.Fragment
 import com.noto.app.R
 import com.noto.app.components.EmptyPainter
 import com.noto.app.components.Screen
-import com.noto.app.domain.model.Font
-import com.noto.app.domain.model.Icon
-import com.noto.app.domain.model.Theme
 import com.noto.app.filtered.FilteredItemModel
-import com.noto.app.settings.*
+import com.noto.app.settings.SettingsItem
+import com.noto.app.settings.SettingsItemType
+import com.noto.app.settings.SettingsSection
+import com.noto.app.settings.SettingsViewModel
 import com.noto.app.util.*
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class GeneralSettingsFragment : Fragment() {
@@ -37,77 +39,52 @@ class GeneralSettingsFragment : Fragment() {
     ): View? = context?.let { context ->
         setupMixedTransitions()
 
-        activity?.onBackPressedDispatcher?.addCallback {
-            navController?.navigateUp()
-        }
+        activity?.onBackPressedDispatcher?.addCallback { navController?.navigateUp() }
 
         navController?.currentBackStackEntry?.savedStateHandle
-            ?.getLiveData<Long>(Constants.FolderId)
-            ?.observe(viewLifecycleOwner) { id ->
-                when (viewModel.folderIdType) {
-                    FolderIdType.MainInterface -> viewModel.setMainInterfaceId(id)
-                    FolderIdType.QuickNote -> viewModel.setQuickNoteFolderId(id)
-                }
-            }
+            ?.getLiveData<Long>(Constants.MainInterfaceId)
+            ?.observe(viewLifecycleOwner) { id -> viewModel.setMainInterfaceId(id) }
+
+        navController?.currentBackStackEntry?.savedStateHandle
+            ?.getLiveData<Long>(Constants.QuickNoteFolderId)
+            ?.observe(viewLifecycleOwner) { id -> viewModel.setQuickNoteFolderId(id) }
 
         ComposeView(context).apply {
             isTransitionGroup = true
             setContent {
-                val allFoldersText = stringResource(id = R.string.all_folders)
-                val allNotesText = stringResource(id = R.string.all)
-                val archivedText = stringResource(id = R.string.archived)
-                val recentNotesText = stringResource(id = R.string.recent)
-                val scheduledText = stringResource(id = R.string.scheduled)
                 val noneText = stringResource(id = R.string.none)
                 val mainInterfaceId by viewModel.mainInterfaceId.collectAsState()
-                val mainInterfaceText by produceState(initialValue = allFoldersText, mainInterfaceId) {
+                val filteredItemModelId = remember(mainInterfaceId) {
+                    FilteredItemModel.entries.firstOrNull { it.id == mainInterfaceId }?.toStringResourceId() ?: R.string.all_folders
+                }
+                val filteredItemModelText = stringResource(id = filteredItemModelId)
+                val mainInterfaceText by produceState(initialValue = filteredItemModelText, mainInterfaceId) {
                     value = when (mainInterfaceId) {
-                        AllFoldersId -> allFoldersText
-                        FilteredItemModel.All.id -> allNotesText
-                        FilteredItemModel.Recent.id -> recentNotesText
-                        FilteredItemModel.Scheduled.id -> scheduledText
-                        FilteredItemModel.Archived.id -> archivedText
-                        else -> viewModel.getFolderById(mainInterfaceId).firstOrNull()?.getTitle(context) ?: noneText
+                        in FilteredItemModel.Ids.plus(AllFoldersId) -> filteredItemModelText
+                        else -> viewModel.getFolderById(mainInterfaceId).filterNotNull().firstOrNull()?.getTitle(context) ?: noneText
                     }
                 }
                 val theme by viewModel.theme.collectAsState()
-                val themeText = when (theme) {
-                    Theme.System -> stringResource(id = R.string.system_dark_theme)
-                    Theme.SystemBlack -> stringResource(id = R.string.system_black_theme)
-                    Theme.Light -> stringResource(id = R.string.light_theme)
-                    Theme.Dark -> stringResource(id = R.string.dark_theme)
-                    Theme.Black -> stringResource(id = R.string.black_theme)
-                }
+                val themeId = remember(theme) { theme.toStringResourceId() }
+                val themeText = stringResource(id = themeId)
                 val language = remember { AppCompatDelegate.getApplicationLocales().toLanguages().first() }
-                val languageText = remember(context, language) { context.stringResource(language.toResource()) }
+                val languageId = remember(language) { language.toStringResourceId() }
+                val languageText = stringResource(id = languageId)
                 val icon by viewModel.icon.collectAsState()
-                val iconText = when (icon) {
-                    Icon.Futuristic -> stringResource(id = R.string.futuristic)
-                    Icon.DarkRain -> stringResource(id = R.string.dark_rain)
-                    Icon.Airplane -> stringResource(id = R.string.airplane)
-                    Icon.BlossomIce -> stringResource(id = R.string.blossom_ice)
-                    Icon.DarkAlpine -> stringResource(id = R.string.dark_alpine)
-                    Icon.DarkSide -> stringResource(id = R.string.dark_side)
-                    Icon.Earth -> stringResource(id = R.string.earth)
-                    Icon.Fire -> stringResource(id = R.string.fire)
-                    Icon.Purpleberry -> stringResource(id = R.string.purpleberry)
-                    Icon.SanguineSun -> stringResource(id = R.string.sanguine_sun)
-                }
-
+                val iconId = remember(icon) { icon.toStringResourceId() }
+                val iconText = stringResource(id = iconId)
                 val font by viewModel.font.collectAsState()
-                val fontText = when (font) {
-                    Font.Nunito -> stringResource(id = R.string.nunito)
-                    Font.Monospace -> stringResource(id = R.string.monospace)
-                }
-
+                val fontId = remember(font) { font.toStringResourceId() }
+                val fontText = stringResource(id = fontId)
                 val notesCountEnabled by viewModel.isShowNotesCount.collectAsState()
                 val rememberScrollingPositionEnabled by viewModel.isRememberScrollingPosition.collectAsState()
                 val quickExit by viewModel.quickExit.collectAsState()
                 val quickNoteFolderId by viewModel.quickNoteFolderId.collectAsState()
-                val quickNoteFolderTitle by produceState(stringResource(id = R.string.general), quickNoteFolderId) {
+                val quickNoteFolderTitle by remember(quickNoteFolderId) {
                     viewModel.getFolderById(quickNoteFolderId)
-                        .collect { value = it.getTitle(context) }
-                }
+                        .filterNotNull()
+                        .map { it.getTitle(context) }
+                }.collectAsState(initial = stringResource(id = R.string.general))
                 val continuousSearch by viewModel.continuousSearch.collectAsState()
                 val previewAutoScroll by viewModel.previewAutoScroll.collectAsState()
 
@@ -117,13 +94,13 @@ class GeneralSettingsFragment : Fragment() {
                             title = stringResource(id = R.string.main_interface),
                             type = SettingsItemType.Text(mainInterfaceText),
                             onClick = {
-                                viewModel.setFolderIdType(FolderIdType.MainInterface)
                                 navController?.navigateSafely(
                                     GeneralSettingsFragmentDirections.actionGeneralSettingsFragmentToSelectFolderDialogFragment(
                                         longArrayOf(),
                                         selectedFolderId = mainInterfaceId,
                                         isMainInterface = true,
                                         title = context.stringResource(R.string.main_interface),
+                                        key = Constants.MainInterfaceId,
                                     )
                                 )
                             },
@@ -135,12 +112,12 @@ class GeneralSettingsFragment : Fragment() {
                             title = stringResource(id = R.string.quick_note_folder),
                             type = SettingsItemType.Text(quickNoteFolderTitle),
                             onClick = {
-                                viewModel.setFolderIdType(FolderIdType.QuickNote)
                                 navController?.navigateSafely(
                                     GeneralSettingsFragmentDirections.actionGeneralSettingsFragmentToSelectFolderDialogFragment(
                                         longArrayOf(),
                                         selectedFolderId = quickNoteFolderId,
-                                        title = context.stringResource(R.string.quick_note_folder)
+                                        title = context.stringResource(R.string.quick_note_folder),
+                                        key = Constants.QuickNoteFolderId,
                                     )
                                 )
                             },

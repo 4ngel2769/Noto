@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.os.bundleOf
-import androidx.navigation.NavDeepLinkBuilder
 import com.noto.app.R
 import com.noto.app.domain.model.Folder
 import com.noto.app.domain.model.Icon
@@ -36,10 +34,10 @@ fun NotificationManager.sendReminderNotification(context: Context, folder: Folde
         .setContentIntent(pendingIntent)
         .setSubText(folder.getTitle(context))
         .setStyle(style)
-        .setColor(context.colorResource(folder.color.toResource()))
+        .setColor(context.colorResource(folder.color.toColorResourceId()))
         .setColorized(true)
         .setCategory(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Notification.CATEGORY_REMINDER else null)
-        .setSmallIcon(icon?.toResource() ?: R.mipmap.ic_launcher_futuristic)
+        .setSmallIcon(icon?.toDrawableResourceId() ?: R.mipmap.ic_launcher_futuristic)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setAutoCancel(true)
         .setGroup(folder.getTitle(context))
@@ -77,10 +75,10 @@ fun NotificationManager.sendQuickNoteNotification(context: Context, folder: Fold
         .setContentTitle(context.stringResource(R.string.note_is_saved, folder.getTitle(context)))
         .setContentIntent(pendingIntent)
         .setSubText(folder.getTitle(context))
-        .setColor(context.colorResource(folder.color.toResource()))
+        .setColor(context.colorResource(folder.color.toColorResourceId()))
         .setColorized(true)
         .setCategory(Notification.CATEGORY_STATUS)
-        .setSmallIcon(icon?.toResource() ?: R.mipmap.ic_launcher_futuristic)
+        .setSmallIcon(icon?.toDrawableResourceId() ?: R.mipmap.ic_launcher_futuristic)
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .setVibrate(null)
         .setSound(null)
@@ -94,25 +92,21 @@ fun NotificationManager.sendQuickNoteNotification(context: Context, folder: Fold
 }
 
 private fun Context.createVaultNotificationPendingIntent(): PendingIntent? {
-    return NavDeepLinkBuilder(this)
-        .setGraph(R.navigation.nav_graph)
-        .setDestination(R.id.mainVaultFragment)
-        .setComponentName(enabledComponentName)
-        .createTaskStackBuilder()
-        .getPendingIntent(RequestCode, PendingIntentFlags)
+    return Intent(Constants.Intent.ActionOpenVault)
+        .apply { component = enabledComponentName }
+        .let { PendingIntent.getActivity(this, RequestCode, it, PendingIntentFlags) }
 }
 
 fun NotificationManager.cancelVaultNotification() = cancel(VaultNotificationId)
 
 private fun Context.createNotificationPendingIntent(noteId: Long, folderId: Long): PendingIntent? {
-    val args = bundleOf(Constants.FolderId to folderId, Constants.NoteId to noteId, Constants.SelectedNoteIds to longArrayOf())
-    return NavDeepLinkBuilder(this)
-        .setGraph(R.navigation.nav_graph)
-        .setDestination(R.id.noteFragment)
-        .setArguments(args)
-        .setComponentName(enabledComponentName)
-        .createTaskStackBuilder()
-        .getPendingIntent(RequestCode, PendingIntentFlags)
+    return Intent(Constants.Intent.ActionOpenNote)
+        .apply {
+            component = enabledComponentName
+            putExtra(Constants.FolderId, folderId)
+            putExtra(Constants.NoteId, noteId)
+        }
+        .let { PendingIntent.getActivity(this, RequestCode, it, PendingIntentFlags) }
 }
 
 fun NotificationManager.createNotificationChannels(context: Context) {

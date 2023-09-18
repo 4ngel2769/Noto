@@ -128,7 +128,7 @@ fun View.snackbar(
         textView?.gravity = Gravity.CENTER
     }
     if (color != null) {
-        val backgroundColor = context.colorResource(color.toResource())
+        val backgroundColor = context.colorResource(color.toColorResourceId())
         val contentColor = context.colorAttributeResource(R.attr.notoBackgroundColor)
         setBackgroundTint(backgroundColor)
         setTextColor(contentColor)
@@ -230,6 +230,7 @@ fun @receiver:ColorInt Int.withDefaultAlpha(alpha: Int = 32): Int =
     ColorUtils.setAlphaComponent(this, alpha)
 
 @SuppressLint("ClickableViewAccessibility")
+@Suppress("NOTHING_TO_OVERRIDE", "ACCIDENTAL_OVERRIDE")
 inline fun BottomAppBar.setOnSwipeGestureListener(crossinline callback: () -> Unit) {
     val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onFling(
@@ -344,6 +345,7 @@ fun View.enable() {
 }
 
 @SuppressLint("ClickableViewAccessibility")
+@Suppress("NOTHING_TO_OVERRIDE", "ACCIDENTAL_OVERRIDE")
 inline fun View.setOnSwipeGestureListener(
     crossinline onSwipeLeft: () -> Unit,
     crossinline onSwipeRight: () -> Unit,
@@ -394,12 +396,14 @@ fun NestedScrollView.isScrollingAsFlow() = callbackFlow {
     awaitClose { setOnScrollChangeListener(null as NestedScrollView.OnScrollChangeListener?) }
 }
 
+@Suppress("DEPRECATION")
 fun View.performClickHapticFeedback() =
     performHapticFeedback(
         HapticFeedbackConstants.VIRTUAL_KEY,
         HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
     )
 
+@Suppress("DEPRECATION")
 fun View.performLongClickHapticFeedback() =
     performHapticFeedback(
         HapticFeedbackConstants.LONG_PRESS,
@@ -409,7 +413,7 @@ fun View.performLongClickHapticFeedback() =
 
 fun NavController.destinationAsFlow() = callbackFlow {
     val listener =
-        NavController.OnDestinationChangedListener { controller, destination, arguments ->
+        NavController.OnDestinationChangedListener { _, destination, _ ->
             trySend(destination)
         }
     addOnDestinationChangedListener(listener)
@@ -490,7 +494,7 @@ fun BottomAppBar.isHiddenAsFlow() = callbackFlow {
 
 fun TextView.setHighlightedText(text: String, term: String, color: NotoColor, matchIndices: IntRange? = null) {
     val indices = text.indicesOf(term, ignoreCase = true).filter { it.first < it.last }
-    val colorResource = context?.colorResource(color.toResource()) ?: return
+    val colorResource = context?.colorResource(color.toColorResourceId()) ?: return
     val lightColorResource = context?.colorAttributeResource(R.attr.notoSecondaryColor)?.withDefaultAlpha(DisabledAlpha / 2) ?: return
     val onColorResource = context?.colorAttributeResource(R.attr.notoBackgroundColor) ?: return
     val onLightColorResource = context?.colorAttributeResource(R.attr.notoPrimaryColor) ?: return
@@ -534,3 +538,12 @@ fun FloatingActionButton.showWithAnimation() {
         .withEndAction { isVisible = true }
         .start()
 }
+
+val TextView.currentLine: Int
+    get() {
+        val cursorPosition = selectionStart.coerceAtLeast(0)
+        return layout?.getLineForOffset(cursorPosition)?.coerceIn(0, lineCount) ?: 0
+    }
+
+val TextView.currentLineScrollPosition: Int
+    get() = layout?.getLineTop(currentLine) ?: 0

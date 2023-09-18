@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import com.noto.app.NotoTheme
 import com.noto.app.R
 import com.noto.app.components.BaseDialogFragment
 import com.noto.app.components.BottomSheetDialog
@@ -28,6 +27,7 @@ import com.noto.app.settings.SettingsItem
 import com.noto.app.settings.SettingsItemType
 import com.noto.app.settings.SettingsSection
 import com.noto.app.settings.SettingsViewModel
+import com.noto.app.theme.NotoTheme
 import com.noto.app.util.Current
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -42,7 +42,7 @@ class WhatsNewDialogFragment : BaseDialogFragment(isCollapsable = true) {
     ): View? = context?.let { context ->
         ComposeView(context).apply {
             setContent {
-                val currentRelease = remember(context) { Release.Current(context) }
+                val currentRelease = remember(context) { Release.Current }
                 val version = remember(currentRelease) { currentRelease.versionFormatted }
                 val changelog = remember(currentRelease) { currentRelease.changelog.changesIds }
                 BottomSheetDialog(

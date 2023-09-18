@@ -16,10 +16,7 @@ import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.NamedNavArgument
 import androidx.navigation.fragment.NavHostFragment
-import androidx.navigation.navArgument
-import androidx.navigation.navOptions
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.noto.app.components.BaseActivity
@@ -42,6 +39,7 @@ private val AppIntents = listOf(
     Constants.Intent.ActionCreateNote,
     Constants.Intent.ActionOpenFolder,
     Constants.Intent.ActionOpenNote,
+    Constants.Intent.ActionOpenVault,
     Constants.Intent.ActionSettings,
 )
 
@@ -63,7 +61,8 @@ class AppActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (viewModel.currentTheme != null) requestNotificationsPermissionIfRequired() // Check required otherwise the callback runs twice.
+        if (appViewModel.currentTheme == null) return
+        requestNotificationsPermissionIfRequired()
         notificationManager.createNotificationChannels(this)
         AppActivityBinding.inflate(layoutInflater).withBinding {
             setContentView(root)
@@ -82,60 +81,31 @@ class AppActivity : BaseActivity() {
     }
 
     private fun setupNavigation() {
-        if (intent?.action !in AppIntents) {
-            when (val interfaceId = viewModel.mainInterfaceId.value) {
-                FilteredItemModel.All.id -> inflateGraphAndSetStartDestination(
-                    R.id.filteredFragment,
-                    listOf(
-                        navArgument(Constants.Model) {
-                            defaultValue = FilteredItemModel.All
-                        }
-                    ),
-                )
+        if (intent?.action !in AppIntents) { // Default action (i.e. opening the app from the home screen.)
+            when (val interfaceId = viewModel.mainInterfaceId.value) { // Set the start destination according to user preference.
+                in FilteredItemModel.Ids -> {
+                    val model = FilteredItemModel.entries.first { it.id == interfaceId }
+                    val args = bundleOf(Constants.Model to model)
+                    inflateGraphAndSetStartDestination(R.id.filteredFragment, args)
+                }
 
-                FilteredItemModel.Recent.id -> inflateGraphAndSetStartDestination(
-                    R.id.filteredFragment,
-                    listOf(
-                        navArgument(Constants.Model) {
-                            defaultValue = FilteredItemModel.Recent
-                        }
-                    ),
-                )
-
-                FilteredItemModel.Scheduled.id -> inflateGraphAndSetStartDestination(
-                    R.id.filteredFragment,
-                    listOf(
-                        navArgument(Constants.Model) {
-                            defaultValue = FilteredItemModel.Scheduled
-                        }
-                    ),
-                )
-
-                FilteredItemModel.Archived.id -> inflateGraphAndSetStartDestination(
-                    R.id.filteredFragment,
-                    listOf(
-                        navArgument(Constants.Model) {
-                            defaultValue = FilteredItemModel.Archived
-                        }
-                    ),
-                )
-
-                AllFoldersId -> {
-                    val args = listOf(navArgument(Constants.FolderId) { defaultValue = Folder.GeneralFolderId })
+                AllFoldersId -> { // MainFragment + General folder
+                    val args = bundleOf(Constants.FolderId to Folder.GeneralFolderId)
                     inflateGraphAndSetStartDestination(R.id.folderFragment, args)
                     if (navController.currentDestination?.id != R.id.mainFragment && viewModel.shouldNavigateToMainFragment) {
-                        navController.navigate(R.id.mainFragment)
+                        navController.navigateSafely(NavGraphDirections.actionGlobalMainFragment())
                         viewModel.setShouldNavigateToMainFragment(false)
                     }
                 }
 
-                else -> {
-                    val args = listOf(navArgument(Constants.FolderId) { defaultValue = interfaceId })
+                else -> { // Custom folder
+                    val args = bundleOf(Constants.FolderId to interfaceId)
                     inflateGraphAndSetStartDestination(R.id.folderFragment, args)
                 }
             }
-        } else {
-            inflateGraphAndSetStartDestination(R.id.folderFragment)
+        } else { // Custom action (i.e. opening the app from a shortcut, notification, or another app)
+            val args = bundleOf(Constants.FolderId to Folder.GeneralFolderId)
+            inflateGraphAndSetStartDestination(R.id.folderFragment, args) // Set the start destination to the General folder.
         }
     }
 
@@ -148,7 +118,7 @@ class AppActivity : BaseActivity() {
 
             Constants.Intent.ActionCreateFolder -> {
                 if (navController.currentDestination?.id != R.id.newFolderFragment)
-                    navController.navigate(R.id.newFolderFragment)
+                    navController.navigateSafely(NavGraphDirections.actionGlobalNewFolderFragment())
             }
 
             Constants.Intent.ActionCreateNote -> {
@@ -156,32 +126,54 @@ class AppActivity : BaseActivity() {
                 if (folderId == 0L) {
                     showSelectFolderDialog(null)
                 } else {
-                    val args = bundleOf(Constants.FolderId to folderId, Constants.SelectedNoteIds to longArrayOf())
-                    navController.popBackStack(R.id.folderFragment, true)
-                    navController.navigate(R.id.folderFragment, args)
-                    navController.navigate(R.id.noteFragment, args)
+                    navController.navigateSafely(NavGraphDirections.actionGlobalFolderFragment(folderId = folderId)) {
+                        popUpTo(R.id.folderFragment) {
+                            inclusive = true
+                        }
+                    }
+                    navController.navigateSafely(
+                        NavGraphDirections.actionGlobalNoteFragment(
+                            folderId = folderId,
+                            selectedNoteIds = longArrayOf(),
+                        )
+                    )
                 }
             }
 
             Constants.Intent.ActionOpenFolder -> {
                 val folderId = intent.getLongExtra(Constants.FolderId, 0)
-                val args = bundleOf(Constants.FolderId to folderId)
-                navController.popBackStack(R.id.folderFragment, true)
-                navController.navigate(R.id.folderFragment, args)
+                navController.navigateSafely(NavGraphDirections.actionGlobalFolderFragment(folderId = folderId)) {
+                    popUpTo(R.id.folderFragment) {
+                        inclusive = true
+                    }
+                }
             }
 
             Constants.Intent.ActionOpenNote -> {
                 val folderId = intent.getLongExtra(Constants.FolderId, 0)
                 val noteId = intent.getLongExtra(Constants.NoteId, 0)
-                val args = bundleOf(Constants.FolderId to folderId, Constants.NoteId to noteId, Constants.SelectedNoteIds to longArrayOf())
-                navController.popBackStack(R.id.folderFragment, true)
-                navController.navigate(R.id.folderFragment, args)
-                navController.navigate(R.id.noteFragment, args)
+                navController.navigateSafely(NavGraphDirections.actionGlobalFolderFragment(folderId = folderId)) {
+                    popUpTo(R.id.folderFragment) {
+                        inclusive = true
+                    }
+                }
+                navController.navigateSafely(
+                    NavGraphDirections.actionGlobalNoteFragment(
+                        folderId = folderId,
+                        noteId = noteId,
+                        selectedNoteIds = longArrayOf(),
+                    )
+                )
+            }
+
+            Constants.Intent.ActionOpenVault -> {
+                if (navController.currentDestination?.id != R.id.mainVaultFragment)
+                    navController.navigateSafely(NavGraphDirections.actionGlobalMainVaultFragment())
             }
 
             Constants.Intent.ActionSettings -> {
                 if (navController.currentDestination?.id != R.id.settingsFragment)
-                    navController.navigate(R.id.settingsFragment)
+                    navController.navigateSafely(NavGraphDirections.actionGlobalSettingsFragment())
             }
         }
         /** Set [intent] to null, so that the code above doesn't run again after a configuration change.*/
@@ -192,18 +184,22 @@ class AppActivity : BaseActivity() {
         navController.getBackStackEntry(R.id.folderFragment).savedStateHandle
             .getLiveData<Long>(Constants.FolderId)
             .observe(this) { folderId ->
-                val options = navOptions {
-                    popUpTo(R.id.folderFragment) {
-                        inclusive = true
-                    }
-                }
-                val args = bundleOf(Constants.FolderId to folderId, Constants.Body to content, Constants.SelectedNoteIds to longArrayOf())
-                navController.navigate(R.id.folderFragment, args, options)
-                navController.navigate(R.id.noteFragment, args)
+                navController.navigateSafely(NavGraphDirections.actionGlobalFolderFragment(folderId = folderId))
+                navController.navigateSafely(
+                    NavGraphDirections.actionGlobalNoteFragment(
+                        folderId = folderId,
+                        body = content,
+                        selectedNoteIds = longArrayOf(),
+                    )
+                )
             }
         if (navController.currentDestination?.id != R.id.selectFolderDialogFragment) {
-            val args = bundleOf(Constants.FilteredFolderIds to longArrayOf(), Constants.Title to stringResource(R.string.select_folder))
-            navController.navigate(R.id.selectFolderDialogFragment, args)
+            navController.navigateSafely(
+                NavGraphDirections.actionGlobalSelectFolderDialogFragment(
+                    filteredFolderIds = longArrayOf(),
+                    title = stringResource(R.string.select_folder),
+                )
+            )
         }
     }
 
@@ -216,9 +212,8 @@ class AppActivity : BaseActivity() {
             viewModel.lastVersion,
             navController.destinationAsFlow(),
         ) { lastVersion, _ ->
-            if (lastVersion != Release.Version.Current.format())
-                if (navController.currentDestination?.id != R.id.whatsNewDialogFragment)
-                    navController.navigate(R.id.whatsNewDialogFragment)
+            if (lastVersion != Release.Version.Current.format() && navController.currentDestination?.id != R.id.whatsNewDialogFragment)
+                navController.navigateSafely(NavGraphDirections.actionGlobalWhatsNewDialogFragment())
         }.launchIn(lifecycleScope)
 
         viewModel.isVaultOpen
@@ -281,13 +276,10 @@ class AppActivity : BaseActivity() {
         .addTag(Constants.VaultTimeout)
         .build()
 
-    private fun inflateGraphAndSetStartDestination(startDestinationId: Int, args: List<NamedNavArgument> = emptyList()) {
+    private fun inflateGraphAndSetStartDestination(startDestinationId: Int, args: Bundle? = null) {
         val graph = navController.navInflater.inflate(R.navigation.nav_graph)
-            .apply {
-                this.setStartDestination(startDestinationId)
-                args.forEach { this.addArgument(it.name, it.argument) }
-            }
-        navController.setGraph(graph, null)
+            .apply { this.setStartDestination(startDestinationId) }
+        navController.setGraph(graph, args)
     }
 
     @SuppressLint("RestrictedApi")

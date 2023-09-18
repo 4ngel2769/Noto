@@ -206,8 +206,6 @@ fun <K, V> Map<K?, V>.filterNotNullKeys() = filterKeys { it != null } as Map<K, 
 fun Map<Label, Boolean>.filterSelected() = filterValues { it }.map { it.key }
 fun List<LabelItemModel>.filterSelected() = filter { it.isSelected }.map { it.label }
 
-fun String.toLongList() = split(", ").mapNotNull { it.toLongOrNull() }
-
 fun String.hash(): String {
     val salt = ByteArray(16)
     val spec = PBEKeySpec(this.toCharArray(), salt, HashIterationCount, HashKeyLength)
@@ -287,10 +285,11 @@ fun Language.Companion.Comparator(context: Context): Comparator<Language> {
         .thenBy { it in Language.Deprecated }
         .thenBy(collator) { it ->
             val localizedContext = context.localize(it)
-            localizedContext.stringResource(it.toResource())
+            localizedContext.stringResource(it.toStringResourceId())
         }
 }
 
+@Suppress("DEPRECATION")
 fun Language.toLocale(): Locale = when (this) {
     Language.System -> Locale.getDefault()
     Language.English -> Locale("en")
@@ -307,6 +306,7 @@ fun Language.toLocale(): Locale = when (this) {
     Language.Lithuanian -> Locale("lt")
     Language.SimplifiedChinese -> Locale("zh")
     Language.Portuguese -> Locale("pt")
+    Language.Korean -> Locale("ko")
 }
 
 fun List<Language>.toLocalListCompat(): LocaleListCompat {
@@ -318,13 +318,14 @@ fun List<Language>.toLocalListCompat(): LocaleListCompat {
     }
 }
 
+@Suppress("DEPRECATION")
 fun LocaleListCompat.toLanguages(): List<Language> {
     return toLanguageTags().split(',').map { tag ->
         when {
             tag.startsWith("en", ignoreCase = true) -> Language.English
             tag.startsWith("tr", ignoreCase = true) -> Language.Turkish
             tag.startsWith("ar", ignoreCase = true) -> Language.Arabic
-            tag.startsWith("in", ignoreCase = true) -> Language.Indonesian
+            tag.startsWith("in", ignoreCase = true) || tag.startsWith("id", ignoreCase = true) -> Language.Indonesian
             tag.startsWith("ru", ignoreCase = true) -> Language.Russian
             tag.startsWith("ta", ignoreCase = true) -> Language.Tamil
             tag.startsWith("es", ignoreCase = true) -> Language.Spanish
@@ -335,6 +336,7 @@ fun LocaleListCompat.toLanguages(): List<Language> {
             tag.startsWith("lt", ignoreCase = true) -> Language.Lithuanian
             tag.startsWith("zh", ignoreCase = true) -> Language.SimplifiedChinese
             tag.startsWith("pt", ignoreCase = true) -> Language.Portuguese
+            tag.startsWith("ko", ignoreCase = true) -> Language.Korean
             else -> Language.System
         }
     }

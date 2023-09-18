@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
 import androidx.core.os.LocaleListCompat
-import com.noto.app.NotoTheme
 import com.noto.app.R
 import com.noto.app.components.BaseDialogFragment
 import com.noto.app.components.BottomSheetDialog
@@ -21,6 +20,7 @@ import com.noto.app.components.MediumSubtitle
 import com.noto.app.components.SelectableDialogItem
 import com.noto.app.domain.model.Language
 import com.noto.app.settings.SettingsViewModel
+import com.noto.app.theme.NotoTheme
 import com.noto.app.util.*
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -64,9 +64,9 @@ class LanguageDialogFragment : BaseDialogFragment(isCollapsable = true) {
                                 Arrangement.SpaceBetween
                             ) {
                                 Column(Modifier.weight(1F), verticalArrangement = Arrangement.spacedBy(NotoTheme.dimensions.extraSmall)) {
-                                    Text(text = localizedContext.stringResource(language.toResource()))
+                                    Text(text = localizedContext.stringResource(language.toStringResourceId()))
                                     if (language != Language.System) {
-                                        MediumSubtitle(text = context.stringResource(language.toResource()))
+                                        MediumSubtitle(text = context.stringResource(language.toStringResourceId()))
                                     }
                                 }
                                 if (language in Language.Deprecated) {

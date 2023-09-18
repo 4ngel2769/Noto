@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMarginsRelative
@@ -57,12 +58,7 @@ class NoteDialogFragment : BaseDialogFragment() {
 
     private val folderColor by lazy { viewModel.folder.value.color }
 
-    private val selectFolderTitle by lazy {
-        when (navController?.previousBackStackEntry?.destination?.id) {
-            R.id.folderArchiveFragment -> context?.stringResource(R.string.select_folder_archive)
-            else -> context?.stringResource(R.string.select_folder)
-        }
-    }
+    private val isSingleFormLanguage by lazy { AppCompatDelegate.getApplicationLocales().toLanguages().first().isSingleForm }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -102,7 +98,7 @@ class NoteDialogFragment : BaseDialogFragment() {
                     val text = if (isArchived)
                         context.stringResource(R.string.note_is_unarchived)
                     else
-                        context.quantityStringResource(R.plurals.note_is_archived, DefaultQuantity)
+                        context.quantityStringResource(R.plurals.note_is_archived, DefaultQuantity, DefaultQuantity)
                     val drawableId = if (isArchived)
                         R.drawable.ic_round_unarchive_24
                     else
@@ -157,7 +153,12 @@ class NoteDialogFragment : BaseDialogFragment() {
                 val stringId = R.plurals.note_is_duplicated
                 val drawableId = R.drawable.ic_round_control_point_duplicate_24
                 context?.let { context ->
-                    parentView?.snackbar(context.quantityStringResource(stringId, DefaultQuantity), drawableId, anchorViewId, folderColor)
+                    parentView?.snackbar(
+                        context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity),
+                        drawableId,
+                        anchorViewId,
+                        folderColor
+                    )
                     context.updateAllWidgetsData()
                 }
                 dismiss()
@@ -178,7 +179,12 @@ class NoteDialogFragment : BaseDialogFragment() {
                     else
                         R.drawable.ic_round_pin_24
                     context.updateAllWidgetsData()
-                    parentView?.snackbar(context.quantityStringResource(stringId, DefaultQuantity), drawableId, anchorViewId, folderColor)
+                    parentView?.snackbar(
+                        context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity),
+                        drawableId,
+                        anchorViewId,
+                        folderColor
+                    )
                 }
                 dismiss()
             }
@@ -192,7 +198,12 @@ class NoteDialogFragment : BaseDialogFragment() {
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
                     val stringId = R.plurals.note_copied_to_clipboard
                     val drawableId = R.drawable.ic_round_copy_24
-                    parentView?.snackbar(context.quantityStringResource(stringId, DefaultQuantity), drawableId, anchorViewId, folderColor)
+                    parentView?.snackbar(
+                        context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity),
+                        drawableId,
+                        anchorViewId,
+                        folderColor
+                    )
                 }
             }
             dismiss()
@@ -210,7 +221,10 @@ class NoteDialogFragment : BaseDialogFragment() {
                             context.updateAllWidgetsData()
                             context.updateNoteListWidgets()
                             parentView?.snackbar(
-                                context.quantityStringResource(stringId, DefaultQuantity, folderTitle),
+                                if (isSingleFormLanguage)
+                                    context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity, folderTitle)
+                                else
+                                    context.quantityStringResource(stringId, DefaultQuantity, folderTitle),
                                 drawableId,
                                 anchorViewId,
                                 folderColor
@@ -240,7 +254,10 @@ class NoteDialogFragment : BaseDialogFragment() {
                         val folderTitle = savedStateHandle.get<String>(Constants.FolderTitle)
                         context?.let { context ->
                             parentView?.snackbar(
-                                context.quantityStringResource(stringId, DefaultQuantity, folderTitle),
+                                if (isSingleFormLanguage)
+                                    context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity, folderTitle)
+                                else
+                                    context.quantityStringResource(stringId, DefaultQuantity, folderTitle),
                                 drawableId,
                                 anchorViewId,
                                 folderColor
@@ -278,7 +295,12 @@ class NoteDialogFragment : BaseDialogFragment() {
                     ?.observe(viewLifecycleOwner) {
                         val stringId = R.plurals.note_is_deleted
                         val drawableId = R.drawable.ic_round_delete_24
-                        parentView?.snackbar(context.quantityStringResource(stringId, DefaultQuantity), drawableId, anchorViewId, folderColor)
+                        parentView?.snackbar(
+                            context.quantityStringResource(stringId, DefaultQuantity, DefaultQuantity),
+                            drawableId,
+                            anchorViewId,
+                            folderColor
+                        )
                         navController?.popBackStack(args.destination, false)
                         if (viewModel.note.value.reminderDate != null) alarmManager?.cancelAlarm(context, viewModel.note.value.id)
                         viewModel.deleteNote().invokeOnCompletion {
@@ -301,7 +323,7 @@ class NoteDialogFragment : BaseDialogFragment() {
 
     private fun NoteDialogFragmentBinding.setupNote(folder: Folder, note: Note, labels: List<Label>) {
         context?.let { context ->
-            val colorResource = context.colorResource(folder.color.toResource())
+            val colorResource = context.colorResource(folder.color.toColorResourceId())
             vNote.root.backgroundTintList = context.colorAttributeResource(R.attr.notoBackgroundColor).toColorStateList()
             vNote.tvNoteTitle.text = note.title
             vNote.tvNoteTitle.maxLines = 3
@@ -378,7 +400,7 @@ class NoteDialogFragment : BaseDialogFragment() {
 
     private fun NoteDialogFragmentBinding.setupFolder(folder: Folder) {
         context?.let { context ->
-            val color = context.colorResource(folder.color.toResource())
+            val color = context.colorResource(folder.color.toColorResourceId())
             val colorStateList = color.toColorStateList()
             tb.tvDialogTitle.setTextColor(color)
             tb.vHead.background?.mutate()?.setTint(color)

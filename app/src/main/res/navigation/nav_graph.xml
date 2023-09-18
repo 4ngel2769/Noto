@@ -3,12 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_graph"
     app:startDestination="@id/mainFragment">
-    <argument
-        android:name="folder_id"
-        app:argType="long" />
-    <argument
-        android:name="note_id"
-        app:argType="long" />
     <dialog
         android:id="@+id/mainFragment"
         android:name="com.noto.app.main.MainFragment"
@@ -261,6 +255,9 @@
         <action
             android:id="@+id/action_folderDialogFragment_to_confirmationDialogFragment"
             app:destination="@id/confirmationDialogFragment" />
+        <action
+            android:id="@+id/action_folderDialogFragment_to_folderFragment"
+            app:destination="@id/folderFragment" />
     </dialog>
     <dialog
         android:id="@+id/confirmationDialogFragment"
@@ -334,6 +331,11 @@
         <argument
             android:name="title"
             app:argType="string" />
+        <argument
+            android:name="key"
+            android:defaultValue="@null"
+            app:argType="string"
+            app:nullable="true" />
     </dialog>
     <dialog
         android:id="@+id/folderListSortingDialogFragment"
@@ -586,7 +588,7 @@
     </fragment>
     <fragment
         android:id="@+id/readingModeSettingsFragment"
-        android:name="com.noto.app.settings.ReadingModeSettingsFragment"
+        android:name="com.noto.app.settings.readingmode.ReadingModeSettingsFragment"
         android:label="ReadingModeSettingsFragment">
         <action
             android:id="@+id/action_readingModeSettingsFragment_to_screenBrightnessLevelDialogFragment"
@@ -675,7 +677,7 @@
     </fragment>
     <dialog
         android:id="@+id/screenBrightnessLevelDialogFragment"
-        android:name="com.noto.app.settings.ScreenBrightnessLevelDialogFragment"
+        android:name="com.noto.app.settings.readingmode.ScreenBrightnessLevelDialogFragment"
         android:label="ScreenBrightnessLevelDialogFragment" />
     <dialog
         android:id="@+id/noteListFilteringDialogFragment"
@@ -695,14 +697,6 @@
         <argument
             android:name="is_sorting"
             app:argType="boolean" />
-    </dialog>
-    <dialog
-        android:id="@+id/quickNoteDialogFragment"
-        android:name="com.noto.app.note.QuickNoteDialogFragment"
-        android:label="QuickNoteDialogFragment">
-        <argument
-            android:name="folder_id"
-            app:argType="long" />
     </dialog>
     <dialog
         android:id="@+id/folderListViewDialogFragment"
@@ -760,4 +754,28 @@
             android:name="release"
             app:argType="string" />
     </fragment>
+    <action
+        android:id="@+id/action_global_noteFragment"
+        app:destination="@id/noteFragment" />
+    <action
+        android:id="@+id/action_global_folderFragment"
+        app:destination="@id/folderFragment" />
+    <action
+        android:id="@+id/action_global_newFolderFragment"
+        app:destination="@id/newFolderFragment" />
+    <action
+        android:id="@+id/action_global_settingsFragment"
+        app:destination="@id/settingsFragment" />
+    <action
+        android:id="@+id/action_global_selectFolderDialogFragment"
+        app:destination="@id/selectFolderDialogFragment" />
+    <action
+        android:id="@+id/action_global_whatsNewDialogFragment"
+        app:destination="@id/whatsNewDialogFragment" />
+    <action
+        android:id="@+id/action_global_mainFragment"
+        app:destination="@id/mainFragment" />
+    <action
+        android:id="@+id/action_global_mainVaultFragment"
+        app:destination="@id/mainVaultFragment" />
 </navigation>

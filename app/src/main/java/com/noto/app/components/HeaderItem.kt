@@ -21,10 +21,10 @@ import com.airbnb.epoxy.EpoxyAttribute
 import com.airbnb.epoxy.EpoxyHolder
 import com.airbnb.epoxy.EpoxyModelClass
 import com.airbnb.epoxy.EpoxyModelWithHolder
-import com.noto.app.NotoTheme
 import com.noto.app.R
 import com.noto.app.databinding.HeaderItemBinding
 import com.noto.app.domain.model.NotoColor
+import com.noto.app.theme.NotoTheme
 import com.noto.app.util.*
 
 @Composable
@@ -62,7 +62,7 @@ fun HeaderItem(
 ) {
     val contentDescription = stringResource(if (isContentVisible) R.string.hide else R.string.show)
     val rotationDegrees by animateFloatAsState(targetValue = if (isContentVisible) 180F else 0F)
-    CompositionLocalProvider(LocalMinimumTouchTargetEnforcement provides false) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
         Surface(
             checked = isContentVisible,
             onCheckedChange = onToggleContentClick,
@@ -141,7 +141,7 @@ abstract class HeaderItem : EpoxyModelWithHolder<HeaderItem.Holder>() {
         ibCreate.setOnClickListener(onCreateClickListener)
         ibCreate.isVisible = onCreateClickListener != null
         if (color != null) {
-            val colorResource = root.context.colorResource(color!!.toResource())
+            val colorResource = root.context.colorResource(color!!.toColorResourceId())
             val colorStateList = colorResource.toColorStateList()
             tvTitle.setTextColor(colorResource)
             vDivider.background?.mutate()?.setTint(colorResource.withDefaultAlpha())
